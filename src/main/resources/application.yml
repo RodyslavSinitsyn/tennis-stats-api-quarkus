@@ -1,0 +1,13 @@
+greeting:
+  message: "hello"
+
+
+quarkus:
+  datasource:
+    db-kind: h2
+    username: sa
+    password:
+    jdbc:
+      url: jdbc:h2:file:./db/tennis-db-dev;AUTO_SERVER=TRUE
+  http:
+    port: 8888
