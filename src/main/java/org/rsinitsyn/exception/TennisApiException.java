@@ -4,7 +4,7 @@ import lombok.Getter;
 
 public class TennisApiException extends RuntimeException {
     @Getter
-    private int code;
+    private final int code;
 
     public TennisApiException(String message, Throwable cause, int code) {
         super(message, cause);
@@ -15,7 +15,11 @@ public class TennisApiException extends RuntimeException {
         this(message, cause, 500);
     }
 
+    public TennisApiException(String message, int code) {
+        this(message, new RuntimeException(), code);
+    }
+
     public TennisApiException(String message) {
-        super(message, new RuntimeException());
+        this(message, new RuntimeException());
     }
 }

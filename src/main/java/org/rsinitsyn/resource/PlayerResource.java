@@ -11,10 +11,10 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
-import org.rsinitsyn.domain.MatchType;
 import org.rsinitsyn.domain.Player;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
 import org.rsinitsyn.dto.request.PlayerStatsFilters;
+import org.rsinitsyn.dto.response.PlayerMatchesDto;
 import org.rsinitsyn.dto.response.PlayerStatsDto;
 import org.rsinitsyn.service.TennisService;
 
@@ -34,9 +34,27 @@ public class PlayerResource {
     @GET
     @Path("/stats/{name}")
     @Produces(MediaType.APPLICATION_JSON)
-    public PlayerStatsDto getDetailsByName(@PathParam("name") String name,
-                                           @BeanParam PlayerStatsFilters filters) {
+    public PlayerStatsDto getStatsByPlayerName(@PathParam("name") String name,
+                                               @BeanParam PlayerStatsFilters filters) {
         return service.getPlayerStats(name, filters);
+    }
+
+    @GET
+    @Path("/matches/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public PlayerMatchesDto getMatchesHistoryByPlayerName(@PathParam("name") String name,
+                                                          @BeanParam PlayerStatsFilters filters,
+                                                          @QueryParam("growSort") boolean growSort) {
+        return service.getPlayerMatches(name, filters, growSort, false);
+    }
+
+    @GET
+    @Path("/matches-formatted/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public PlayerMatchesDto getFormattedMatchesHistoryByPlayerName(@PathParam("name") String name,
+                                                                   @BeanParam PlayerStatsFilters filters,
+                                                                   @QueryParam("growSort") boolean growSort) {
+        return service.getPlayerMatches(name, filters, growSort, true);
     }
 
     @POST

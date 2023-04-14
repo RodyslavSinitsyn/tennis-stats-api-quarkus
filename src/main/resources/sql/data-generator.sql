@@ -20,7 +20,8 @@ BEGIN
 
     FOR i IN 1..count
         LOOP
-            INSERT INTO match(id, type, tournament_id) VALUES ((SELECT nextval('hibernate_sequence')), matchType, null);
+            INSERT INTO match(id, type, tournamentid, stage, date)
+            VALUES ((SELECT nextval('hibernate_sequence')), matchType, null, 'FRIENDLY', now());
 
             SELECT floor(random() * (2 - 0 + 1) + 0) INTO randomScored;
 
@@ -34,10 +35,11 @@ BEGIN
 
             SELECT MAX(id) FROM match INTO matchId;
 
-            INSERT INTO match_player(matchid, playerid, missed, scored, extraround, winner)
-            VALUES (matchId, playerid, missed, randomScored, false, randomScored > missed);
-            INSERT INTO match_player(matchid, playerid, missed, scored, extraround, winner)
-            VALUES (matchId, opponentId, randomScored, missed, false, missed > randomScored);
+            INSERT INTO match_result(matchid, playerid, missed, scored, extraround, winner, opponentid)
+            VALUES (matchId, playerId, missed, randomScored, false, randomScored > missed, opponentId);
+
+            INSERT INTO match_result(matchid, playerid, missed, scored, extraround, winner, opponentid)
+            VALUES (matchId, opponentId, randomScored, missed, false, missed > randomScored, playerId);
         END LOOP;
 END ;
 $$;

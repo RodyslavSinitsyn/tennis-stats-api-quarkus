@@ -9,13 +9,15 @@ import javax.persistence.ManyToOne;
 import javax.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 
 @Entity
-@Table(name = "match_player")
-@IdClass(MatchPlayerId.class)
+@Table(name = "match_result")
+@IdClass(MatchResultId.class)
 @Setter
 @Getter
-public class MatchPlayer {
+public class MatchResult {
     @Id
     @ManyToOne
     @JoinColumn(name = "matchid", referencedColumnName = "id")
@@ -30,4 +32,8 @@ public class MatchPlayer {
     private boolean winner;
     @Column(nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
     private boolean extraRound;
+    @NotFound(action = NotFoundAction.EXCEPTION)
+    @ManyToOne
+    @JoinColumn(name = "opponentid", referencedColumnName = "id", nullable = false)
+    private Player opponent;
 }

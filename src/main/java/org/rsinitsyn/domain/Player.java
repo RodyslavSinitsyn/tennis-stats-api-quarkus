@@ -2,12 +2,19 @@ package org.rsinitsyn.domain;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
+import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
+import org.rsinitsyn.exception.TennisApiException;
 
 @Entity
 @Table(name = "player")
@@ -21,13 +28,24 @@ public class Player extends PanacheEntity {
     public int age;
     public LocalDateTime registrationDate = LocalDateTime.now();
 
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @OneToMany(mappedBy = "player", fetch = FetchType.EAGER)
+    public Set<MatchResult> matches = new HashSet<>();
+
+    public static Player findByName(String name) {
+        return (Player) Player.find("name", name).firstResultOptional()
+                .orElseThrow(() -> new TennisApiException("Player 'name' not found:" + name));
+    }
+
     public static Player ofDto(CreatePlayerDto dto) {
         return new Player(
                 dto.name(),
                 dto.firstName(),
                 dto.lastName(),
                 dto.age(),
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                null
         );
     }
 }

@@ -1,0 +1,9 @@
+quarkus:
+  datasource:
+    username: postgres
+    password: postgres
+    jdbc:
+      url: jdbc:postgresql://localhost:5433/tennis-db-prod
+  hibernate-orm:
+    database:
+      generation: validate

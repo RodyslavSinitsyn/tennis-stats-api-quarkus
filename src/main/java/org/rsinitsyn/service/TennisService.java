@@ -1,13 +1,14 @@
 package org.rsinitsyn.service;
 
-import io.quarkus.runtime.util.StringUtil;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.enterprise.context.ApplicationScoped;
@@ -16,89 +17,82 @@ import javax.transaction.Transactional;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.rsinitsyn.domain.Match;
-import org.rsinitsyn.domain.MatchPlayer;
-import org.rsinitsyn.domain.MatchType;
+import org.rsinitsyn.domain.MatchResult;
 import org.rsinitsyn.domain.Player;
 import org.rsinitsyn.domain.Tournament;
+import org.rsinitsyn.domain.TournamentStage;
 import org.rsinitsyn.dto.request.CreateMatchDto;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
 import org.rsinitsyn.dto.request.PlayerStatsFilters;
-import org.rsinitsyn.dto.response.MatchRepresentationDto;
+import org.rsinitsyn.dto.response.PlayerMatchesDto;
 import org.rsinitsyn.dto.response.PlayerStatsDto;
 import org.rsinitsyn.exception.TennisApiException;
-import org.rsinitsyn.repo.MatchPlayerRepo;
+import org.rsinitsyn.repo.MatchResultRepo;
+
+import static org.rsinitsyn.domain.MatchType.LONG;
+import static org.rsinitsyn.domain.MatchType.SHORT;
 
 @ApplicationScoped
 @Transactional
 public class TennisService {
 
     @Inject
-    MatchPlayerRepo matchPlayerRepo;
+    MatchResultRepo matchResultRepo;
 
-    public List<MatchRepresentationDto> getAllMatchesRepresentations() {
-        Map<Match, List<MatchPlayer>> groupedByMatch = matchPlayerRepo.streamAll()
-                .collect(Collectors.groupingBy(MatchPlayer::getMatch));
+    public List<String> getAllMatchesRepresentations() {
+        Map<Match, MatchResult> groupedByMatch = matchResultRepo.streamAll()
+                .collect(Collectors.toMap(MatchResult::getMatch, Function.identity(), (matchResult, matchResult2) -> matchResult));
 
-        List<MatchRepresentationDto> response = new ArrayList<>();
-        groupedByMatch.values().stream()
-                .filter(matchPlayers -> matchPlayers.size() == 2)
-                .forEach(matchPlayers -> {
-                    String leftVal = extractPlayerScore(
-                            matchPlayers.get(0).getPlayer().name,
-                            matchPlayers.get(0).getScored(),
-                            true
-                    );
-                    String rightVal = extractPlayerScore(
-                            matchPlayers.get(1).getPlayer().name,
-                            matchPlayers.get(1).getScored(),
-                            false
-                    );
 
-                    response.add(new MatchRepresentationDto(
-                            leftVal + " - " + rightVal,
-                            ""));
-                });
+        List<PlayerMatchesDto.PlayerMatchDetailsDto> matches = groupedByMatch.values().stream()
+                .map(mr -> PlayerMatchesDto.PlayerMatchDetailsDto.builder()
+                        .matchType(mr.getMatch().type)
+                        .name(mr.getPlayer().name)
+                        .score(mr.getScored())
+                        .opponentName(mr.getOpponent().name)
+                        .opponentScore(mr.getMissed())
+                        .build())
+                .toList();
 
-        return response;
+
+        return matches.stream().map(PlayerMatchesDto.PlayerMatchDetailsDto::getRepresentation).collect(Collectors.toList());
     }
 
-    private String extractPlayerScore(String playerName, int score, boolean left) {
-        return left
-                ? playerName + " " + score
-                : score + " " + playerName;
-    }
-
-    public List<MatchPlayer> saveMatch(CreateMatchDto dto) {
+    public Match saveMatch(CreateMatchDto dto) {
         Match match = new Match();
         match.type = dto.type();
-        if (!StringUtil.isNullOrEmpty(dto.event())) {
-            Tournament.findByName(dto.event())
-                    .ifPresent(tournament -> match.tournament = tournament);
+        match.date = LocalDateTime.now();
+        if (dto.tournamentInfo() != null) {
+            Tournament.findByName(dto.tournamentInfo().name())
+                    .ifPresentOrElse(tournament -> {
+                        match.tournament = tournament;
+                        match.stage = dto.tournamentInfo().stage().orElseThrow(() -> new TennisApiException("Stage not set", 400));
+                    }, () -> {
+                        match.stage = TournamentStage.FRIENDLY;
+                    });
         }
         match.persist();
 
-        return List.of(
-                saveMatchPlayer(match, dto.player(), dto.opponentPlayer()),
-                saveMatchPlayer(match, dto.opponentPlayer(), dto.player())
-        );
+        saveMatchPlayer(match, dto.player(), dto.opponentPlayer());
+        saveMatchPlayer(match, dto.opponentPlayer(), dto.player());
+
+        return match;
     }
 
-    public MatchPlayer saveMatchPlayer(Match match,
+    public MatchResult saveMatchPlayer(Match match,
                                        CreateMatchDto.PlayerResultDto player,
                                        CreateMatchDto.PlayerResultDto opponent) {
-        MatchPlayer matchPlayer = new MatchPlayer();
-        matchPlayer.setMatch(match);
-        matchPlayer.setScored(player.score());
-        matchPlayer.setMissed(opponent.score());
-        matchPlayer.setExtraRound(Math.abs(player.score()) - opponent.score() == 1);
-        matchPlayer.setWinner(player.score() > opponent.score());
+        MatchResult matchResult = new MatchResult();
+        matchResult.setMatch(match);
+        matchResult.setScored(player.score());
+        matchResult.setMissed(opponent.score());
+        matchResult.setExtraRound(Math.abs(player.score() - opponent.score()) == 1);
+        matchResult.setWinner(player.score() > opponent.score());
+        matchResult.setPlayer(Player.findByName(player.name()));
+        matchResult.setOpponent(Player.findByName(opponent.name()));
 
-        Player persistedPlayer = (Player) Player.find("name", player.name()).firstResultOptional()
-                .orElseThrow(() -> new TennisApiException("Player 'name' not found:" + player.name()));
-        matchPlayer.setPlayer(persistedPlayer);
-
-        matchPlayerRepo.persist(matchPlayer);
-        return matchPlayer;
+        matchResultRepo.persist(matchResult);
+        return matchResult;
     }
 
     public Player savePlayer(String name, String firstName, String lastName, int age) {
@@ -111,7 +105,6 @@ public class TennisService {
         return player;
     }
 
-
     public Player savePlayer(CreatePlayerDto dto) {
         Player player = Player.ofDto(dto);
         player.persist();
@@ -119,56 +112,58 @@ public class TennisService {
     }
 
     public PlayerStatsDto getPlayerStats(String name, PlayerStatsFilters filtersDto) {
-        List<MatchPlayer> playerMatches = matchPlayerRepo.streamAll()
-                .filter(matchPlayer -> matchPlayer.getPlayer().name.equals(name))
+        var player = Player.findByName(name);
+        List<MatchResult> filtered = player.matches
+                .stream()
+                .filter(matchResult -> getFilters(filtersDto).stream().allMatch(p -> p.test(matchResult)))
                 .toList();
         return new PlayerStatsDto(
+                name,
                 filtersDto,
-                getPlayerStatistic(playerMatches, Collections.emptyList()),
+                getPlayerStatistic(filtered),
                 Map.of(
-                        MatchType.SHORT, getPlayerStatistic(playerMatches, getFilters(filtersDto, MatchType.SHORT)),
-                        MatchType.LONG, getPlayerStatistic(playerMatches, getFilters(filtersDto, MatchType.LONG))
+                        SHORT, getPlayerStatistic(filtered.stream().filter(mr -> mr.getMatch().type.equals(SHORT)).toList()),
+                        LONG, getPlayerStatistic(filtered.stream().filter(mr -> mr.getMatch().type.equals(LONG)).toList())
                 ),
-                null
+                filtered.stream().map(MatchResult::getOpponent)
+                        .collect(Collectors.toSet())
+                        .stream().collect(Collectors.toMap(
+                                opponent -> opponent.name,
+                                opponent -> Map.of(
+                                        "ALL", getPlayerStatistic(filtered.stream().filter(mr -> mr.getOpponent().name.equals(opponent.name)).toList()),
+                                        SHORT.name(), getPlayerStatistic(filtered.stream().filter(mr -> mr.getOpponent().name.equals(opponent.name) && mr.getMatch().type.equals(SHORT)).toList()),
+                                        LONG.name(), getPlayerStatistic(filtered.stream().filter(mr -> mr.getOpponent().name.equals(opponent.name) && mr.getMatch().type.equals(LONG)).toList()))))
         );
     }
 
-    private List<Predicate<MatchPlayer>> getFilters(PlayerStatsFilters filters, MatchType defaultType) {
-        List<Predicate<MatchPlayer>> predicates = new ArrayList<>();
+    private List<Predicate<MatchResult>> getFilters(PlayerStatsFilters filters) {
+        List<Predicate<MatchResult>> predicates = new ArrayList<>();
         if (StringUtils.isNotEmpty(filters.getOpponent())) {
-            predicates.add(matchPlayer -> matchPlayerRepo.streamAll()
-                    .filter(mp -> mp.getMatch().id.equals(matchPlayer.getMatch().id))
-                    .anyMatch(mp -> mp.getPlayer().name.equals(filters.getOpponent()))
-            );
+            predicates.add(matchResult -> matchResult.getOpponent().name.equals(filters.getOpponent()));
         }
         if (StringUtils.isNotEmpty(filters.getTournament())) {
             predicates.add(matchPlayer -> Optional.ofNullable(matchPlayer.getMatch().tournament)
                     .map(tournament -> tournament.name.equals(filters.getTournament()))
                     .orElse(Boolean.FALSE));
         }
-        if (filters.getType() == null) {
-            predicates.add(matchPlayer -> matchPlayer.getMatch().type.equals(defaultType));
-        }
         return predicates;
     }
 
-    public PlayerStatsDto.PlayerScoreStatsDto getPlayerStatistic(List<MatchPlayer> playerMatches,
-                                                                 List<Predicate<MatchPlayer>> filters) {
-        List<MatchPlayer> matches = playerMatches.stream()
-                .filter(matchPlayer -> filters.stream().allMatch(filter -> filter.test(matchPlayer)))
-                .toList();
-
-        int wins = (int) matches.stream().filter(MatchPlayer::isWinner).count();
-        int scored = matches.stream().mapToInt(MatchPlayer::getScored).sum();
-        int missed = matches.stream().mapToInt(MatchPlayer::getMissed).sum();
+    private PlayerStatsDto.PlayerScoreStatsDto getPlayerStatistic(List<MatchResult> matches) {
+        int wins = (int) matches.stream().filter(MatchResult::isWinner).count();
+        int scored = matches.stream().mapToInt(MatchResult::getScored).sum();
+        int missed = matches.stream().mapToInt(MatchResult::getMissed).sum();
         return PlayerStatsDto.PlayerScoreStatsDto.builder()
                 .matches(matches.size())
                 .wins(wins)
                 .loses(matches.size() - wins)
                 .winRate(divide(wins * 100, matches.size()))
-                .scored(scored)
-                .missed(missed)
-                .scoreRate(divide(scored, missed))
+                .pointsScored(scored)
+                .avgPointsScored(divide(scored, matches.size()))
+                .pointsMissed(missed)
+                .avgPointsMissed(divide(missed, matches.size()))
+                .pointsRate(divide(scored, missed))
+                .extra((int) matches.stream().filter(MatchResult::isExtraRound).count())
                 .build();
     }
 
@@ -177,5 +172,34 @@ public class TennisService {
                 .divide(BigDecimal.valueOf(
                         NumberUtils.max(divideOn, 1)), 2, RoundingMode.HALF_UP)
                 .doubleValue();
+    }
+
+    public PlayerMatchesDto getPlayerMatches(String name, PlayerStatsFilters filters, boolean growSort, boolean formatted) {
+        Player player = Player.findByName(name);
+        List<MatchResult> filtered = player.matches.stream()
+                .filter(matchResult -> getFilters(filters).stream().allMatch(p -> p.test(matchResult)))
+                .toList();
+
+        List<PlayerMatchesDto.PlayerMatchDetailsDto> playerMatchDetailsDtos = filtered.stream()
+                .map(mr -> PlayerMatchesDto.PlayerMatchDetailsDto.builder()
+                        .matchType(mr.getMatch().type)
+                        .name(mr.getPlayer().name)
+                        .score(mr.getScored())
+                        .opponentName(mr.getOpponent().name)
+                        .opponentScore(mr.getMissed())
+                        .build())
+                .sorted(Comparator.comparing(PlayerMatchesDto.PlayerMatchDetailsDto::getScoreDifference,
+                        growSort ? Comparator.naturalOrder() : Comparator.reverseOrder()))
+                .toList();
+
+        if (formatted) {
+            return new PlayerMatchesDto(
+                    null,
+                    playerMatchDetailsDtos.stream().map(PlayerMatchesDto.PlayerMatchDetailsDto::getRepresentation).toList());
+        } else {
+            return new PlayerMatchesDto(
+                    playerMatchDetailsDtos,
+                    null);
+        }
     }
 }

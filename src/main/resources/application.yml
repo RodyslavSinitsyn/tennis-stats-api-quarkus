@@ -14,6 +14,3 @@ quarkus:
   hibernate-orm:
     database:
       generation: update
-  live-reload:
-    instrumentation: true
-    url: localhost:8889
