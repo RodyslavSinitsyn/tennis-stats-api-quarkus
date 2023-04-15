@@ -27,10 +27,11 @@ import org.rsinitsyn.dto.request.BaseStatsFilter;
 import org.rsinitsyn.dto.request.CreateMatchDto;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
 import org.rsinitsyn.dto.request.PlayerStatsFilters;
-import org.rsinitsyn.dto.response.MatchRecordsDto;
-import org.rsinitsyn.dto.response.PlayerMatchesDto;
-import org.rsinitsyn.dto.response.PlayerStatsDto;
-import org.rsinitsyn.dto.response.TournamentHistoryDto;
+import org.rsinitsyn.dto.response.PlayerMatchesResponse;
+import org.rsinitsyn.dto.response.PlayerStatsResponse;
+import org.rsinitsyn.dto.response.RatingsResponse;
+import org.rsinitsyn.dto.response.RecordsResponse;
+import org.rsinitsyn.dto.response.TournamentHistoryResponse;
 import org.rsinitsyn.exception.TennisApiException;
 import org.rsinitsyn.repo.MatchResultRepo;
 import org.rsinitsyn.utils.StatsUtils;
@@ -55,12 +56,12 @@ public class TennisService {
     }
 
     public List<String> getAllMatchesRepresentations() {
-        List<PlayerMatchesDto.PlayerMatchDetailsDto> matches = matchResultRepo.findAllDistinct()
+        List<PlayerMatchesResponse.PlayerMatchDetailsDto> matches = matchResultRepo.findAllDistinct()
                 .stream()
                 .sorted(Comparator.comparing(mr -> mr.getMatch().date))
                 .map(this::getMatchDetails)
                 .toList();
-        return matches.stream().map(PlayerMatchesDto.PlayerMatchDetailsDto::getRepresentation).collect(Collectors.toList());
+        return matches.stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).collect(Collectors.toList());
     }
 
     public Match saveMatch(CreateMatchDto dto) {
@@ -133,13 +134,13 @@ public class TennisService {
         return player;
     }
 
-    public PlayerStatsDto getPlayerStats(String name, PlayerStatsFilters filtersDto) {
+    public PlayerStatsResponse getPlayerStats(String name, PlayerStatsFilters filtersDto) {
         var player = Player.findByName(name);
         List<MatchResult> filtered = player.matches
                 .stream()
                 .filter(matchResult -> getFilters(filtersDto).stream().allMatch(p -> p.test(matchResult)))
                 .toList();
-        return new PlayerStatsDto(
+        return new PlayerStatsResponse(
                 name,
                 filtersDto,
                 getPlayerStatisticDto(filtered),
@@ -174,12 +175,12 @@ public class TennisService {
         return predicates;
     }
 
-    private PlayerStatsDto.PlayerScoreStatsDto getPlayerStatisticDto(List<MatchResult> matches) {
+    private PlayerStatsResponse.PlayerStatsDto getPlayerStatisticDto(List<MatchResult> matches) {
         int wins = (int) matches.stream().filter(MatchResult::isWinner).count();
         int scored = matches.stream().mapToInt(MatchResult::getScored).sum();
         int missed = matches.stream().mapToInt(MatchResult::getMissed).sum();
 
-        return PlayerStatsDto.PlayerScoreStatsDto.builder()
+        return PlayerStatsResponse.PlayerStatsDto.builder()
                 .matches(matches.size())
                 .wins(wins)
                 .loses(matches.size() - wins)
@@ -205,32 +206,32 @@ public class TennisService {
     }
 
 
-    public PlayerMatchesDto getPlayerMatches(String name, PlayerStatsFilters filters, boolean growSort, boolean formatted) {
+    public PlayerMatchesResponse getPlayerMatches(String name, PlayerStatsFilters filters, boolean growSort, boolean formatted) {
         Player player = Player.findByName(name);
         List<MatchResult> filtered = player.matches.stream()
                 .filter(matchResult -> getFilters(filters).stream().allMatch(p -> p.test(matchResult)))
                 .sorted(Comparator.comparing(mr -> mr.getMatch().date, Comparator.reverseOrder()))
                 .toList();
 
-        List<PlayerMatchesDto.PlayerMatchDetailsDto> playerMatchDetailsDtos = filtered.stream()
+        List<PlayerMatchesResponse.PlayerMatchDetailsDto> playerMatchDetailsDtos = filtered.stream()
                 .map(this::getMatchDetails)
-                .sorted(Comparator.comparing(PlayerMatchesDto.PlayerMatchDetailsDto::getScoreDifference,
+                .sorted(Comparator.comparing(PlayerMatchesResponse.PlayerMatchDetailsDto::getScoreDifference,
                         growSort ? Comparator.naturalOrder() : Comparator.reverseOrder()))
                 .toList();
 
         if (formatted) {
-            return new PlayerMatchesDto(
+            return new PlayerMatchesResponse(
                     null,
-                    playerMatchDetailsDtos.stream().map(PlayerMatchesDto.PlayerMatchDetailsDto::getRepresentation).toList());
+                    playerMatchDetailsDtos.stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList());
         } else {
-            return new PlayerMatchesDto(
+            return new PlayerMatchesResponse(
                     playerMatchDetailsDtos,
                     null);
         }
     }
 
-    private PlayerMatchesDto.PlayerMatchDetailsDto getMatchDetails(MatchResult mr) {
-        return PlayerMatchesDto.PlayerMatchDetailsDto.builder()
+    private PlayerMatchesResponse.PlayerMatchDetailsDto getMatchDetails(MatchResult mr) {
+        return PlayerMatchesResponse.PlayerMatchDetailsDto.builder()
                 .matchType(mr.getMatch().type)
                 .name(mr.getPlayer().name)
                 .score(mr.getScored())
@@ -241,9 +242,9 @@ public class TennisService {
                 .build();
     }
 
-    public MatchRecordsDto getRecords() {
+    public RecordsResponse getRecords() {
         List<MatchResult> allMatches = matchResultRepo.listAll();
-        return new MatchRecordsDto(
+        return new RecordsResponse(
                 StatsUtils.linkedHashMapMatchType(
                         getRecordListDto(filterByType(allMatches, SHORT, LONG)),
                         getRecordListDto(filterByType(allMatches, SHORT)),
@@ -258,66 +259,66 @@ public class TennisService {
                 .toList();
     }
 
-    private MatchRecordsDto.RecordListDto getRecordListDto(List<MatchResult> matchResults) {
+    private RecordsResponse.RecordListDto getRecordListDto(List<MatchResult> matchResults) {
         var playerToStats = matchResults.stream()
                 .collect(Collectors.groupingBy(MatchResult::getPlayer))
                 .entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> getPlayerStatisticDto(e.getValue())));
 
-        return MatchRecordsDto.RecordListDto.builder()
+        return RecordsResponse.RecordListDto.builder()
                 .matches(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsDto.PlayerScoreStatsDto::getMatches),
-                                PlayerStatsDto.PlayerScoreStatsDto::getMatches)
+                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getMatches),
+                                PlayerStatsResponse.PlayerStatsDto::getMatches)
                 )
                 .winRate(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsDto.PlayerScoreStatsDto::getWinRate),
-                                PlayerStatsDto.PlayerScoreStatsDto::getWinRate)
+                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getWinRate),
+                                PlayerStatsResponse.PlayerStatsDto::getWinRate)
                 )
                 .wins(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsDto.PlayerScoreStatsDto::getWins),
-                                PlayerStatsDto.PlayerScoreStatsDto::getWins)
+                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getWins),
+                                PlayerStatsResponse.PlayerStatsDto::getWins)
                 )
                 .loses(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsDto.PlayerScoreStatsDto::getLoses),
-                                PlayerStatsDto.PlayerScoreStatsDto::getLoses)
+                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getLoses),
+                                PlayerStatsResponse.PlayerStatsDto::getLoses)
                 )
                 .pointsScored(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsDto.PlayerScoreStatsDto::getPointsScored),
-                                PlayerStatsDto.PlayerScoreStatsDto::getPointsScored)
+                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getPointsScored),
+                                PlayerStatsResponse.PlayerStatsDto::getPointsScored)
                 )
                 .avgPointsScored(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsDto.PlayerScoreStatsDto::getAvgPointsScored),
-                                PlayerStatsDto.PlayerScoreStatsDto::getAvgPointsScored)
+                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getAvgPointsScored),
+                                PlayerStatsResponse.PlayerStatsDto::getAvgPointsScored)
                 )
                 .pointsMissed(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsDto.PlayerScoreStatsDto::getPointsMissed),
-                                PlayerStatsDto.PlayerScoreStatsDto::getPointsMissed)
+                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getPointsMissed),
+                                PlayerStatsResponse.PlayerStatsDto::getPointsMissed)
                 )
                 .avgPointsMissed(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsDto.PlayerScoreStatsDto::getAvgPointsMissed),
-                                PlayerStatsDto.PlayerScoreStatsDto::getAvgPointsMissed)
+                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getAvgPointsMissed),
+                                PlayerStatsResponse.PlayerStatsDto::getAvgPointsMissed)
                 )
                 .pointsRate(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsDto.PlayerScoreStatsDto::getPointsRate),
-                                PlayerStatsDto.PlayerScoreStatsDto::getPointsRate)
+                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getPointsRate),
+                                PlayerStatsResponse.PlayerStatsDto::getPointsRate)
                 )
                 .build();
     }
 
-    private MatchRecordsDto.RecordListDto.RecordDto getRecordDto(
-            Map<Player, PlayerStatsDto.PlayerScoreStatsDto> playersStats,
-            Comparator<? super PlayerStatsDto.PlayerScoreStatsDto> sortComparator,
-            Function<? super PlayerStatsDto.PlayerScoreStatsDto, Object> valueExtractor) {
+    private RecordsResponse.RecordListDto.RecordDto getRecordDto(
+            Map<Player, PlayerStatsResponse.PlayerStatsDto> playersStats,
+            Comparator<? super PlayerStatsResponse.PlayerStatsDto> sortComparator,
+            Function<? super PlayerStatsResponse.PlayerStatsDto, Object> valueExtractor) {
 
         Map<String, String> best = playersStats.entrySet()
                 .stream()
@@ -331,11 +332,11 @@ public class TennisService {
                 .limit(1)
                 .collect(Collectors.toMap(e -> e.getKey().name, e -> String.valueOf(valueExtractor.apply(e.getValue()))));
 
-        return new MatchRecordsDto.RecordListDto.RecordDto(
-                new MatchRecordsDto.RecordListDto.RecordValueDto(best.entrySet().stream().findFirst().orElseThrow().getKey(),
+        return new RecordsResponse.RecordListDto.RecordDto(
+                new RecordsResponse.RecordListDto.PlayerValueDto(best.entrySet().stream().findFirst().orElseThrow().getKey(),
                         best.entrySet().stream().findFirst().orElseThrow().getValue()),
 
-                new MatchRecordsDto.RecordListDto.RecordValueDto(worst.entrySet().stream().findFirst().orElseThrow().getKey(),
+                new RecordsResponse.RecordListDto.PlayerValueDto(worst.entrySet().stream().findFirst().orElseThrow().getKey(),
                         worst.entrySet().stream().findFirst().orElseThrow().getValue())
         );
     }
@@ -351,7 +352,7 @@ public class TennisService {
                 getPlayerStats(name, filters));
     }
 
-    public TournamentHistoryDto getTournamentHistory(Long id) {
+    public TournamentHistoryResponse getTournamentHistory(Long id) {
         var tournament = (Tournament)
                 Tournament.findByIdOptional(id).orElseThrow(() -> new TennisApiException("Not found tournament", 404));
         var allMatches = matchResultRepo.findAllDistinct().stream()
@@ -366,10 +367,52 @@ public class TennisService {
                         LinkedHashMap::new,
                         Collectors.mapping(mr -> getMatchDetails(mr).getRepresentation(), Collectors.toList())));
 
-        return new TournamentHistoryDto(
+        return new TournamentHistoryResponse(
                 tournament,
                 null,
                 history
         );
+    }
+
+    public RatingsResponse getRatings() {
+        List<MatchResult> allMatches = matchResultRepo.listAll();
+
+        return new RatingsResponse(
+                StatsUtils.linkedHashMapMatchType(
+                        getRatingListDto(filterByType(allMatches, SHORT, LONG)),
+                        getRatingListDto(filterByType(allMatches, SHORT)),
+                        getRatingListDto(filterByType(allMatches, LONG))
+                )
+        );
+    }
+
+    private RatingsResponse.RatingsListDto getRatingListDto(List<MatchResult> matchResults) {
+        var playerToStats = matchResults.stream()
+                .collect(Collectors.groupingBy(MatchResult::getPlayer))
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> getPlayerStatisticDto(e.getValue())));
+
+
+        return RatingsResponse.RatingsListDto.builder()
+                .matches(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getMatches), PlayerStatsResponse.PlayerStatsDto::getMatches))
+                .winRate(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getWinRate), PlayerStatsResponse.PlayerStatsDto::getWinRate))
+                .pointsRate(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getPointsRate), PlayerStatsResponse.PlayerStatsDto::getPointsRate))
+                .avgScored(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getAvgPointsScored), PlayerStatsResponse.PlayerStatsDto::getAvgPointsScored))
+                .avgMissed(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getAvgPointsMissed), PlayerStatsResponse.PlayerStatsDto::getAvgPointsMissed))
+                .build();
+    }
+
+    private List<RecordsResponse.RecordListDto.PlayerValueDto> getRatingsList(Map<Player, PlayerStatsResponse.PlayerStatsDto> map,
+                                                                              Comparator<? super PlayerStatsResponse.PlayerStatsDto> sortComparator,
+                                                                              Function<? super PlayerStatsResponse.PlayerStatsDto, Object> valueExtractor) {
+        return map.entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByValue(sortComparator.reversed()))
+                .map(e -> new RecordsResponse.RecordListDto.PlayerValueDto(
+                        e.getKey().name,
+                        String.valueOf(valueExtractor.apply(e.getValue()))
+                ))
+                .toList();
     }
 }

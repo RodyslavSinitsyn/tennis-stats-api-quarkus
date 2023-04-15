@@ -10,13 +10,13 @@ import java.util.Map;
 import javax.enterprise.context.ApplicationScoped;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
-import org.rsinitsyn.dto.response.PlayerStatsDto;
+import org.rsinitsyn.dto.response.PlayerStatsResponse;
 import org.rsinitsyn.exception.TennisApiException;
 
 @ApplicationScoped
 public class CsvReportService implements ReportService {
     @Override
-    public ByteArrayInputStream generateStatsReport(PlayerStatsDto playerStats) {
+    public ByteArrayInputStream generateStatsReport(PlayerStatsResponse playerStats) {
 
         CSVFormat format = CSVFormat.DEFAULT.builder()
                 .setHeader(
@@ -30,11 +30,11 @@ public class CsvReportService implements ReportService {
                      new CSVPrinter(new PrintWriter(out), format)) {
 
             csvPrinter.printRecord(statsToTokens("ALL", "ALL", playerStats.getOverallStats()));
-            for (Map.Entry<String, PlayerStatsDto.PlayerScoreStatsDto> entry : playerStats.getTypeStats().entrySet()) {
+            for (Map.Entry<String, PlayerStatsResponse.PlayerStatsDto> entry : playerStats.getTypeStats().entrySet()) {
                 csvPrinter.printRecord(statsToTokens(entry.getKey(), "ALL", entry.getValue()));
             }
-            for (Map.Entry<String, Map<String, PlayerStatsDto.PlayerScoreStatsDto>> entry : playerStats.getVersusPlayersStats().entrySet()) {
-                for (Map.Entry<String, PlayerStatsDto.PlayerScoreStatsDto> subEntry : entry.getValue().entrySet()) {
+            for (Map.Entry<String, Map<String, PlayerStatsResponse.PlayerStatsDto>> entry : playerStats.getVersusPlayersStats().entrySet()) {
+                for (Map.Entry<String, PlayerStatsResponse.PlayerStatsDto> subEntry : entry.getValue().entrySet()) {
                     csvPrinter.printRecord(statsToTokens(subEntry.getKey(), entry.getKey(), subEntry.getValue()));
                 }
             }
@@ -47,7 +47,7 @@ public class CsvReportService implements ReportService {
 
     private List<String> statsToTokens(String matchType,
                                        String opponent,
-                                       PlayerStatsDto.PlayerScoreStatsDto dto) {
+                                       PlayerStatsResponse.PlayerStatsDto dto) {
         List<String> res = new ArrayList<>();
         res.add(matchType);
         res.add(opponent);

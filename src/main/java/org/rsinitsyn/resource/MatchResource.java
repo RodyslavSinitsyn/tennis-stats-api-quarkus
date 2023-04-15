@@ -10,7 +10,8 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import org.rsinitsyn.domain.Match;
 import org.rsinitsyn.dto.request.CreateMatchDto;
-import org.rsinitsyn.dto.response.MatchRecordsDto;
+import org.rsinitsyn.dto.response.RatingsResponse;
+import org.rsinitsyn.dto.response.RecordsResponse;
 import org.rsinitsyn.service.TennisService;
 
 @Path("/match")
@@ -20,7 +21,7 @@ public class MatchResource {
     TennisService service;
 
     @GET
-    @Path("/all/beautify")
+    @Path("/all")
     @Produces(value = MediaType.APPLICATION_JSON)
     public List<String> getAll() {
         return service.getAllMatchesRepresentations();
@@ -29,8 +30,15 @@ public class MatchResource {
     @GET
     @Path("/records")
     @Produces(value = MediaType.APPLICATION_JSON)
-    public MatchRecordsDto getRecords() {
+    public RecordsResponse getRecords() {
         return service.getRecords();
+    }
+
+    @GET
+    @Path("/ratings")
+    @Produces(value = MediaType.APPLICATION_JSON)
+    public RatingsResponse getRatings() {
+        return service.getRatings();
     }
 
     @POST

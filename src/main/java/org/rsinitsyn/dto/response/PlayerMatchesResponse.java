@@ -10,7 +10,7 @@ import org.rsinitsyn.utils.StatsUtils;
 
 @Data
 @AllArgsConstructor
-public class PlayerMatchesDto {
+public class PlayerMatchesResponse {
     private List<PlayerMatchDetailsDto> matches;
     private List<String> formattedMatches;
 

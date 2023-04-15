@@ -10,7 +10,7 @@ import org.rsinitsyn.domain.TournamentStage;
 
 @AllArgsConstructor
 @Data
-public class TournamentHistoryDto {
+public class TournamentHistoryResponse {
     private Tournament tournamentInfo;
     private Map<Integer, Player> positions;
     private Map<TournamentStage, List<String>> matchesHistory;

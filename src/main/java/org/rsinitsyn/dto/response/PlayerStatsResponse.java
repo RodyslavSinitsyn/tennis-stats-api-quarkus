@@ -8,16 +8,16 @@ import org.rsinitsyn.dto.request.PlayerStatsFilters;
 
 @Data
 @AllArgsConstructor
-public class PlayerStatsDto {
+public class PlayerStatsResponse {
     private String playerShortName;
     private PlayerStatsFilters filters;
-    private PlayerScoreStatsDto overallStats;
-    private Map<String, PlayerScoreStatsDto> typeStats;
-    private Map<String, Map<String, PlayerScoreStatsDto>> versusPlayersStats;
+    private PlayerStatsDto overallStats;
+    private Map<String, PlayerStatsDto> typeStats;
+    private Map<String, Map<String, PlayerStatsDto>> versusPlayersStats;
 
     @Builder
     @Data
-    public static final class PlayerScoreStatsDto {
+    public static final class PlayerStatsDto {
         private final int matches;
         private final int wins;
         private final int loses;

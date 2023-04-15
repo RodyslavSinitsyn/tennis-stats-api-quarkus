@@ -1,8 +1,8 @@
 package org.rsinitsyn.service;
 
 import java.io.ByteArrayInputStream;
-import org.rsinitsyn.dto.response.PlayerStatsDto;
+import org.rsinitsyn.dto.response.PlayerStatsResponse;
 
 public interface ReportService {
-    ByteArrayInputStream generateStatsReport(PlayerStatsDto playerStats);
+    ByteArrayInputStream generateStatsReport(PlayerStatsResponse playerStats);
 }

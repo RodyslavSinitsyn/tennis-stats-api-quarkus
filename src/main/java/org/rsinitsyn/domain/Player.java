@@ -1,5 +1,6 @@
 package org.rsinitsyn.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ public class Player extends PanacheEntity {
     public int age;
     public LocalDateTime registrationDate = LocalDateTime.now();
 
+    @JsonIgnore
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "player", fetch = FetchType.EAGER)

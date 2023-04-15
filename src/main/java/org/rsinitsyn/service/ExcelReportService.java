@@ -12,14 +12,14 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.rsinitsyn.dto.response.PlayerStatsDto;
+import org.rsinitsyn.dto.response.PlayerStatsResponse;
 import org.rsinitsyn.exception.TennisApiException;
 
 @ApplicationScoped
 public class ExcelReportService implements ReportService {
     @SneakyThrows
     @Override
-    public ByteArrayInputStream generateStatsReport(PlayerStatsDto playerStats) {
+    public ByteArrayInputStream generateStatsReport(PlayerStatsResponse playerStats) {
         var workbook = new XSSFWorkbook();
         var allStatsSheet = createSheet(workbook, "Все матчи");
         createHeaderRow(allStatsSheet);
@@ -28,15 +28,15 @@ public class ExcelReportService implements ReportService {
         var typeSheet = createSheet(workbook, "Шорт Лонг");
         createHeaderRow(typeSheet);
         int rowCounter = 1;
-        for (Map.Entry<String, PlayerStatsDto.PlayerScoreStatsDto> typeEntry : playerStats.getTypeStats().entrySet()) {
+        for (Map.Entry<String, PlayerStatsResponse.PlayerStatsDto> typeEntry : playerStats.getTypeStats().entrySet()) {
             appendRow(typeSheet, rowCounter++, typeEntry.getKey(), "ALL", typeEntry.getValue());
         }
 
-        for (Map.Entry<String, Map<String, PlayerStatsDto.PlayerScoreStatsDto>> opponentEntry : playerStats.getVersusPlayersStats().entrySet()) {
+        for (Map.Entry<String, Map<String, PlayerStatsResponse.PlayerStatsDto>> opponentEntry : playerStats.getVersusPlayersStats().entrySet()) {
             var perPlayerSheet = createSheet(workbook, "Против " + opponentEntry.getKey());
             createHeaderRow(perPlayerSheet);
             int subCounter = 1;
-            for (Map.Entry<String, PlayerStatsDto.PlayerScoreStatsDto> subTypeEntry : opponentEntry.getValue().entrySet()) {
+            for (Map.Entry<String, PlayerStatsResponse.PlayerStatsDto> subTypeEntry : opponentEntry.getValue().entrySet()) {
                 appendRow(perPlayerSheet, subCounter++, subTypeEntry.getKey(), opponentEntry.getKey(), subTypeEntry.getValue());
             }
         }
@@ -65,7 +65,7 @@ public class ExcelReportService implements ReportService {
             int rowNum,
             String matchType,
             String opponent,
-            PlayerStatsDto.PlayerScoreStatsDto dto) {
+            PlayerStatsResponse.PlayerStatsDto dto) {
         Row row = sheet.createRow(rowNum);
         appendCell(row, 0, matchType);
         appendCell(row, 1, opponent);

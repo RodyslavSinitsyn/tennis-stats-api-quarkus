@@ -7,7 +7,7 @@ import lombok.Data;
 
 @Data
 @AllArgsConstructor
-public class MatchRecordsDto {
+public class RecordsResponse {
 
     private Map<String, RecordListDto> records;
 
@@ -27,11 +27,11 @@ public class MatchRecordsDto {
         @Data
         @AllArgsConstructor
         public static class RecordDto {
-            private RecordValueDto highest;
-            private RecordValueDto lowest;
+            private PlayerValueDto highest;
+            private PlayerValueDto lowest;
         }
 
-        public record RecordValueDto(String holder, String value) {
+        public record PlayerValueDto(String holder, String value) {
         }
     }
 }
