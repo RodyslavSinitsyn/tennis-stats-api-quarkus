@@ -11,7 +11,9 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import org.rsinitsyn.domain.Player;
+import org.rsinitsyn.dto.request.BaseStatsFilter;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
 import org.rsinitsyn.dto.request.PlayerStatsFilters;
 import org.rsinitsyn.dto.response.PlayerMatchesDto;
@@ -30,6 +32,27 @@ public class PlayerResource {
     public List<Player> getAll() {
         return Player.listAll();
     }
+
+    @GET
+    @Path("/stats/{name}/csv")
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    public Response getStatsByPlayerNameInCsv(@PathParam("name") String name,
+                                              @BeanParam PlayerStatsFilters filters) {
+        return Response.ok(service.getPlayerStatsCsv(name, filters))
+                .header("Content-disposition", "attachment; filename=stats.csv")
+                .build();
+    }
+
+    @GET
+    @Path("/stats/{name}/xlsx")
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    public Response getStatsByPlayerNameInExcel(@PathParam("name") String name,
+                                                @BeanParam BaseStatsFilter filters) {
+        return Response.ok(service.getPlayerStatsExcel(name, filters))
+                .header("Content-disposition", "attachment; filename=stats.xlsx")
+                .build();
+    }
+
 
     @GET
     @Path("/stats/{name}")

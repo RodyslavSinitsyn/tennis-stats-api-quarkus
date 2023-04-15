@@ -19,18 +19,18 @@ public class PlayerStatsDto {
     @Builder
     @Data
     public static final class PlayerScoreStatsDto {
-        private final MatchType matchType;
-
         private final int matches;
-        private final int extra;
         private final int wins;
         private final int loses;
         private final double winRate;
+        private final int overtimes;
 
         private final int pointsScored;
-        private final double avgPointsScored;
         private final int pointsMissed;
+        private final double avgPointsScored;
         private final double avgPointsMissed;
+        private final int medianPointsScored;
+        private final int medianPointsMissed;
         private final double pointsRate;
     }
 }

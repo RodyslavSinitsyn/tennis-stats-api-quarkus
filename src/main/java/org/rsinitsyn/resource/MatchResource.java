@@ -7,9 +7,11 @@ import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import org.rsinitsyn.domain.Match;
 import org.rsinitsyn.dto.request.CreateMatchDto;
+import org.rsinitsyn.dto.response.MatchRecordsDto;
 import org.rsinitsyn.service.TennisService;
 
 @Path("/match")
@@ -23,6 +25,13 @@ public class MatchResource {
     @Produces(value = MediaType.APPLICATION_JSON)
     public List<String> getAll() {
         return service.getAllMatchesRepresentations();
+    }
+
+    @GET
+    @Path("/records")
+    @Produces(value = MediaType.APPLICATION_JSON)
+    public MatchRecordsDto getRecords(@QueryParam("playerName") String playerName) {
+        return service.getRecords(playerName);
     }
 
     @POST

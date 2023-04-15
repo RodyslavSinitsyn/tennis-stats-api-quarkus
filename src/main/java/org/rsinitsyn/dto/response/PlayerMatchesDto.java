@@ -21,11 +21,11 @@ public class PlayerMatchesDto {
         private int opponentScore;
         private String opponentName;
         private String stage;
-        private int number;
+        private String tournamentName;
 
         public String getRepresentation() {
-            return String.format("%s %d - %d %s",
-                    name, score, opponentScore, opponentName);
+            return String.format("[%s %d - %d %s] %s, %s",
+                    name, score, opponentScore, opponentName, stage, tournamentName);
         }
 
         public int getScoreDifference() {
