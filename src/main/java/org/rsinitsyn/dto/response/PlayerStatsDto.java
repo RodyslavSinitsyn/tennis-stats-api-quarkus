@@ -4,7 +4,6 @@ import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import org.rsinitsyn.domain.MatchType;
 import org.rsinitsyn.dto.request.PlayerStatsFilters;
 
 @Data
@@ -13,7 +12,7 @@ public class PlayerStatsDto {
     private String playerShortName;
     private PlayerStatsFilters filters;
     private PlayerScoreStatsDto overallStats;
-    private Map<MatchType, PlayerScoreStatsDto> typeStats;
+    private Map<String, PlayerScoreStatsDto> typeStats;
     private Map<String, Map<String, PlayerScoreStatsDto>> versusPlayersStats;
 
     @Builder

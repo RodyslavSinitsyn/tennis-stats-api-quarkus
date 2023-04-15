@@ -1,10 +1,12 @@
 package org.rsinitsyn.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import org.rsinitsyn.domain.MatchType;
+import org.rsinitsyn.utils.StatsUtils;
 
 @Data
 @AllArgsConstructor
@@ -23,13 +25,15 @@ public class PlayerMatchesDto {
         private String stage;
         private String tournamentName;
 
+        @JsonIgnore
         public String getRepresentation() {
             return String.format("[%s %d - %d %s] %s, %s",
                     name, score, opponentScore, opponentName, stage, tournamentName);
         }
 
-        public int getScoreDifference() {
-            return score - opponentScore;
+        @JsonIgnore
+        public double getScoreDifference() {
+            return StatsUtils.divide(score, opponentScore);
         }
     }
 }
