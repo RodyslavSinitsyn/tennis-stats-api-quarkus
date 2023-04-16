@@ -29,8 +29,10 @@ import org.rsinitsyn.dto.request.CreatePlayerDto;
 import org.rsinitsyn.dto.request.PlayerStatsFilters;
 import org.rsinitsyn.dto.response.PlayerMatchesResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse;
+import org.rsinitsyn.dto.response.PlayerStatsResponse.PlayerStatsDto;
 import org.rsinitsyn.dto.response.RatingsResponse;
 import org.rsinitsyn.dto.response.RecordsResponse;
+import org.rsinitsyn.dto.response.RecordsResponse.RecordListDto.PlayerValueDto;
 import org.rsinitsyn.dto.response.TournamentHistoryResponse;
 import org.rsinitsyn.exception.TennisApiException;
 import org.rsinitsyn.repo.MatchResultRepo;
@@ -39,6 +41,7 @@ import org.rsinitsyn.utils.StatsUtils;
 import static org.rsinitsyn.domain.MatchType.LONG;
 import static org.rsinitsyn.domain.MatchType.SHORT;
 import static org.rsinitsyn.utils.StatsUtils.divide;
+import static org.rsinitsyn.utils.StatsUtils.longestStreak;
 
 @ApplicationScoped
 @Transactional
@@ -175,16 +178,18 @@ public class TennisService {
         return predicates;
     }
 
-    private PlayerStatsResponse.PlayerStatsDto getPlayerStatisticDto(List<MatchResult> matches) {
+    private PlayerStatsDto getPlayerStatisticDto(List<MatchResult> matches) {
         int wins = (int) matches.stream().filter(MatchResult::isWinner).count();
         int scored = matches.stream().mapToInt(MatchResult::getScored).sum();
         int missed = matches.stream().mapToInt(MatchResult::getMissed).sum();
 
-        return PlayerStatsResponse.PlayerStatsDto.builder()
+        return PlayerStatsDto.builder()
                 .matches(matches.size())
                 .wins(wins)
                 .loses(matches.size() - wins)
                 .winRate(divide(wins * 100, matches.size()))
+                .winStreak(longestStreak(matches, MatchResult::isWinner))
+                .loseStreak(longestStreak(matches, mr -> !mr.isWinner()))
                 .pointsScored(scored)
                 .avgPointsScored(divide(scored, matches.size()))
                 .medianPointsScored(getMedianValue(matches, MatchResult::getScored))
@@ -269,75 +274,71 @@ public class TennisService {
         return RecordsResponse.RecordListDto.builder()
                 .matches(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getMatches),
-                                PlayerStatsResponse.PlayerStatsDto::getMatches)
-                )
-                .winRate(
-                        getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getWinRate),
-                                PlayerStatsResponse.PlayerStatsDto::getWinRate)
+                                Comparator.comparing(PlayerStatsDto::getMatches),
+                                PlayerStatsDto::getMatches)
                 )
                 .wins(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getWins),
-                                PlayerStatsResponse.PlayerStatsDto::getWins)
+                                Comparator.comparing(PlayerStatsDto::getWins),
+                                PlayerStatsDto::getWins)
                 )
                 .loses(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getLoses),
-                                PlayerStatsResponse.PlayerStatsDto::getLoses)
+                                Comparator.comparing(PlayerStatsDto::getLoses),
+                                PlayerStatsDto::getLoses)
+                )
+                .winRate(
+                        getRecordDto(playerToStats,
+                                Comparator.comparing(PlayerStatsDto::getWinRate),
+                                PlayerStatsDto::getWinRate)
+                )
+                .winStreak(
+                        getRecordDto(playerToStats,
+                                Comparator.comparing(PlayerStatsDto::getWinStreak),
+                                PlayerStatsDto::getWinStreak)
+                )
+                .loseStreak(
+                        getRecordDto(playerToStats,
+                                Comparator.comparing(PlayerStatsDto::getLoseStreak),
+                                PlayerStatsDto::getLoseStreak)
                 )
                 .pointsScored(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getPointsScored),
-                                PlayerStatsResponse.PlayerStatsDto::getPointsScored)
+                                Comparator.comparing(PlayerStatsDto::getPointsScored),
+                                PlayerStatsDto::getPointsScored)
                 )
                 .avgPointsScored(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getAvgPointsScored),
-                                PlayerStatsResponse.PlayerStatsDto::getAvgPointsScored)
+                                Comparator.comparing(PlayerStatsDto::getAvgPointsScored),
+                                PlayerStatsDto::getAvgPointsScored)
                 )
                 .pointsMissed(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getPointsMissed),
-                                PlayerStatsResponse.PlayerStatsDto::getPointsMissed)
+                                Comparator.comparing(PlayerStatsDto::getPointsMissed),
+                                PlayerStatsDto::getPointsMissed)
                 )
                 .avgPointsMissed(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getAvgPointsMissed),
-                                PlayerStatsResponse.PlayerStatsDto::getAvgPointsMissed)
+                                Comparator.comparing(PlayerStatsDto::getAvgPointsMissed),
+                                PlayerStatsDto::getAvgPointsMissed)
                 )
                 .pointsRate(
                         getRecordDto(playerToStats,
-                                Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getPointsRate),
-                                PlayerStatsResponse.PlayerStatsDto::getPointsRate)
+                                Comparator.comparing(PlayerStatsDto::getPointsRate),
+                                PlayerStatsDto::getPointsRate)
                 )
                 .build();
     }
 
     private RecordsResponse.RecordListDto.RecordDto getRecordDto(
-            Map<Player, PlayerStatsResponse.PlayerStatsDto> playersStats,
-            Comparator<? super PlayerStatsResponse.PlayerStatsDto> sortComparator,
-            Function<? super PlayerStatsResponse.PlayerStatsDto, Object> valueExtractor) {
-
-        Map<String, String> best = playersStats.entrySet()
-                .stream()
-                .sorted(Map.Entry.comparingByValue(sortComparator.reversed()))
-                .limit(1)
-                .collect(Collectors.toMap(e -> e.getKey().name, e -> String.valueOf(valueExtractor.apply(e.getValue()))));
-
-        Map<String, String> worst = playersStats.entrySet()
-                .stream()
-                .sorted(Map.Entry.comparingByValue(sortComparator))
-                .limit(1)
-                .collect(Collectors.toMap(e -> e.getKey().name, e -> String.valueOf(valueExtractor.apply(e.getValue()))));
-
+            Map<Player, PlayerStatsDto> playersStats,
+            Comparator<? super PlayerStatsDto> sortComparator,
+            Function<? super PlayerStatsDto, Object> valueExtractor) {
+        List<PlayerValueDto> ratingsList =
+                getRatingsList(playersStats, sortComparator, valueExtractor);
         return new RecordsResponse.RecordListDto.RecordDto(
-                new RecordsResponse.RecordListDto.PlayerValueDto(best.entrySet().stream().findFirst().orElseThrow().getKey(),
-                        best.entrySet().stream().findFirst().orElseThrow().getValue()),
-
-                new RecordsResponse.RecordListDto.PlayerValueDto(worst.entrySet().stream().findFirst().orElseThrow().getKey(),
-                        worst.entrySet().stream().findFirst().orElseThrow().getValue())
+                ratingsList.get(0),
+                ratingsList.get(ratingsList.size() - 1)
         );
     }
 
@@ -395,21 +396,23 @@ public class TennisService {
 
 
         return RatingsResponse.RatingsListDto.builder()
-                .matches(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getMatches), PlayerStatsResponse.PlayerStatsDto::getMatches))
-                .winRate(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getWinRate), PlayerStatsResponse.PlayerStatsDto::getWinRate))
-                .pointsRate(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getPointsRate), PlayerStatsResponse.PlayerStatsDto::getPointsRate))
-                .avgScored(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getAvgPointsScored), PlayerStatsResponse.PlayerStatsDto::getAvgPointsScored))
-                .avgMissed(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsResponse.PlayerStatsDto::getAvgPointsMissed), PlayerStatsResponse.PlayerStatsDto::getAvgPointsMissed))
+                .matches(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsDto::getMatches), PlayerStatsDto::getMatches))
+                .winRate(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsDto::getWinRate), PlayerStatsDto::getWinRate))
+                .winStreak(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsDto::getWinStreak), PlayerStatsDto::getWinStreak))
+                .loseStreak(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsDto::getLoseStreak), PlayerStatsDto::getLoseStreak))
+                .pointsRate(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsDto::getPointsRate), PlayerStatsDto::getPointsRate))
+                .avgScored(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsDto::getAvgPointsScored), PlayerStatsDto::getAvgPointsScored))
+                .avgMissed(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsDto::getAvgPointsMissed), PlayerStatsDto::getAvgPointsMissed))
                 .build();
     }
 
-    private List<RecordsResponse.RecordListDto.PlayerValueDto> getRatingsList(Map<Player, PlayerStatsResponse.PlayerStatsDto> map,
-                                                                              Comparator<? super PlayerStatsResponse.PlayerStatsDto> sortComparator,
-                                                                              Function<? super PlayerStatsResponse.PlayerStatsDto, Object> valueExtractor) {
+    private List<PlayerValueDto> getRatingsList(Map<Player, PlayerStatsDto> map,
+                                                Comparator<? super PlayerStatsDto> sortComparator,
+                                                Function<? super PlayerStatsDto, Object> valueExtractor) {
         return map.entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByValue(sortComparator.reversed()))
-                .map(e -> new RecordsResponse.RecordListDto.PlayerValueDto(
+                .map(e -> new PlayerValueDto(
                         e.getKey().name,
                         String.valueOf(valueExtractor.apply(e.getValue()))
                 ))

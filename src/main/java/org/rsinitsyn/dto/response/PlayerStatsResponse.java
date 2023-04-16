@@ -24,6 +24,9 @@ public class PlayerStatsResponse {
         private final double winRate;
         private final int overtimes;
 
+        private final int winStreak;
+        private final int loseStreak;
+
         private final int pointsScored;
         private final int pointsMissed;
         private final double avgPointsScored;

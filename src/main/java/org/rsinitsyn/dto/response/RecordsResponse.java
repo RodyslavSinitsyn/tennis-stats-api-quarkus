@@ -18,6 +18,8 @@ public class RecordsResponse {
         private RecordDto wins;
         private RecordDto loses;
         private RecordDto winRate;
+        private RecordDto winStreak;
+        private RecordDto loseStreak;
         private RecordDto pointsScored;
         private RecordDto avgPointsScored;
         private RecordDto pointsMissed;

@@ -16,6 +16,8 @@ public class RatingsResponse {
     public static class RatingsListDto {
         private List<RecordsResponse.RecordListDto.PlayerValueDto> matches;
         private List<RecordsResponse.RecordListDto.PlayerValueDto> winRate;
+        private List<RecordsResponse.RecordListDto.PlayerValueDto> winStreak;
+        private List<RecordsResponse.RecordListDto.PlayerValueDto> loseStreak;
         private List<RecordsResponse.RecordListDto.PlayerValueDto> avgScored;
         private List<RecordsResponse.RecordListDto.PlayerValueDto> avgMissed;
         private List<RecordsResponse.RecordListDto.PlayerValueDto> pointsRate;

@@ -11,6 +11,22 @@ quarkus:
     enable: true
   http:
     port: 8888
+    auth:
+      permission:
+        getPermission:
+          paths: /api/*
+          policy: permit
+          enabled: true
+          methods: GET
+        updatePermission:
+          paths: /api/*
+          policy: permit
+          enabled: true
+          methods: POST,PUT,DELETE
+      basic: true
+      policy:
+        adminPolicy:
+          roles-allowed: admin
   hibernate-orm:
     database:
       generation: update
