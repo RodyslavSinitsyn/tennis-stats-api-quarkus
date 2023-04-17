@@ -1,6 +1,10 @@
 greeting:
   message: "hello"
 
+firebase:
+  credential:
+    path: src/main/resources/firestore/serviceAccount.json
+
 quarkus:
   datasource:
     username: postgres

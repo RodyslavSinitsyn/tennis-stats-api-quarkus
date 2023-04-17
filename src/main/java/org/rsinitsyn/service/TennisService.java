@@ -1,7 +1,7 @@
 package org.rsinitsyn.service;
 
 import java.io.ByteArrayInputStream;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.transaction.Transactional;
+import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.rsinitsyn.domain.Match;
 import org.rsinitsyn.domain.MatchResult;
@@ -52,7 +53,9 @@ public class TennisService {
     ExcelReportService excelReportService;
 
     @Inject
-    public TennisService(MatchResultRepo matchResultRepo, CsvReportService csvReportService, ExcelReportService excelReportService) {
+    public TennisService(MatchResultRepo matchResultRepo,
+                         CsvReportService csvReportService,
+                         ExcelReportService excelReportService) {
         this.matchResultRepo = matchResultRepo;
         this.csvReportService = csvReportService;
         this.excelReportService = excelReportService;
@@ -71,7 +74,7 @@ public class TennisService {
         validateMatchDto(dto);
         Match match = new Match();
         match.type = dto.type();
-        match.date = LocalDateTime.now();
+        match.date = Instant.now();
         if (dto.tournamentInfo() != null) {
             Tournament.findByName(dto.tournamentInfo().name())
                     .ifPresentOrElse(tournament -> {
@@ -121,16 +124,7 @@ public class TennisService {
         return matchResult;
     }
 
-    public Player savePlayer(String name, String firstName, String lastName, int age) {
-        Player player = new Player();
-        player.name = name;
-        player.firstName = firstName;
-        player.lastName = lastName;
-        player.age = age;
-        player.persist();
-        return player;
-    }
-
+    @SneakyThrows
     public Player savePlayer(CreatePlayerDto dto) {
         Player player = Player.ofDto(dto);
         player.persist();
@@ -393,7 +387,6 @@ public class TennisService {
                 .entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> getPlayerStatisticDto(e.getValue())));
-
 
         return RatingsResponse.RatingsListDto.builder()
                 .matches(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsDto::getMatches), PlayerStatsDto::getMatches))

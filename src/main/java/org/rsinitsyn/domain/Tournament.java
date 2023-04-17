@@ -1,7 +1,7 @@
 package org.rsinitsyn.domain;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -14,7 +14,7 @@ public class Tournament extends PanacheEntity {
     public String name;
     public String fullName;
     public String description;
-    public LocalDateTime date = LocalDateTime.now();
+    public Instant date = Instant.now();
 
     public static Optional<Tournament> findByName(String name) {
         return find("name", name).firstResultOptional();

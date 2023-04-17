@@ -2,7 +2,7 @@ package org.rsinitsyn.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import javax.persistence.Column;
@@ -27,7 +27,7 @@ public class Player extends PanacheEntity {
     public String firstName;
     public String lastName;
     public int age;
-    public LocalDateTime registrationDate = LocalDateTime.now();
+    public Instant registrationDate = Instant.now();
 
     @JsonIgnore
     @ToString.Exclude
@@ -46,7 +46,7 @@ public class Player extends PanacheEntity {
                 dto.firstName(),
                 dto.lastName(),
                 dto.age(),
-                LocalDateTime.now(),
+                Instant.now(),
                 null
         );
     }

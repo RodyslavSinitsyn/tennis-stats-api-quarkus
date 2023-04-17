@@ -1,7 +1,7 @@
 package org.rsinitsyn.domain;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import javax.persistence.Entity;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
@@ -20,5 +20,5 @@ public class Match extends PanacheEntity {
     public Tournament tournament;
     @Enumerated(EnumType.STRING)
     public TournamentStage stage;
-    public LocalDateTime date;
+    public Instant date;
 }
