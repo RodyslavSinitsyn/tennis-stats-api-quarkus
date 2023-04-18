@@ -6,6 +6,15 @@ firebase:
     path: src/main/resources/firestore/serviceAccount.json
 
 quarkus:
+  mailer:
+    start-tls=REQUIRED:
+    from: ${EMAIL_NAME:from}
+    username: ${EMAIL_NAME:username}
+    password: ${EMAIL_PASSWORD:password}
+    host: smtp.gmail.com
+    port: 587
+    auth-methods: DIGEST-MD5 CRAM-SHA256 CRAM-SHA1 CRAM-MD5 PLAIN LOGIN
+    mock: false
   datasource:
     username: postgres
     password: postgres
@@ -34,5 +43,5 @@ quarkus:
   hibernate-orm:
     database:
       generation: update
-  package:
-    type: uber-jar
+#  package:
+#    type: uber-jar
