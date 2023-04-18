@@ -1,17 +1,18 @@
 package org.rsinitsyn.service;
 
+import io.quarkus.cache.CacheInvalidateAll;
+import io.quarkus.cache.CacheResult;
+import io.quarkus.logging.Log;
 import java.io.ByteArrayInputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -34,15 +35,14 @@ import org.rsinitsyn.dto.response.PlayerStatsResponse.PlayerStatsDto;
 import org.rsinitsyn.dto.response.RatingsResponse;
 import org.rsinitsyn.dto.response.RecordsResponse;
 import org.rsinitsyn.dto.response.RecordsResponse.RecordListDto.PlayerValueDto;
-import org.rsinitsyn.dto.response.TournamentHistoryResponse;
 import org.rsinitsyn.exception.TennisApiException;
 import org.rsinitsyn.repo.MatchResultRepo;
+import org.rsinitsyn.utils.ConverterUtils;
 import org.rsinitsyn.utils.StatsUtils;
 
 import static org.rsinitsyn.domain.MatchType.LONG;
 import static org.rsinitsyn.domain.MatchType.SHORT;
-import static org.rsinitsyn.utils.StatsUtils.divide;
-import static org.rsinitsyn.utils.StatsUtils.longestStreak;
+import static org.rsinitsyn.utils.ConverterUtils.getPlayerStatisticDto;
 
 @ApplicationScoped
 @Transactional
@@ -65,11 +65,13 @@ public class TennisService {
         List<PlayerMatchesResponse.PlayerMatchDetailsDto> matches = matchResultRepo.findAllDistinct()
                 .stream()
                 .sorted(Comparator.comparing(mr -> mr.getMatch().date))
-                .map(this::getMatchDetails)
+                .map(ConverterUtils::getMatchDetailsDto)
                 .toList();
         return matches.stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).collect(Collectors.toList());
     }
 
+    @CacheInvalidateAll(cacheName = "ratings-cache")
+    @CacheInvalidateAll(cacheName = "records-cache")
     public Match saveMatch(CreateMatchDto dto) {
         validateMatchDto(dto);
         Match match = new Match();
@@ -124,7 +126,15 @@ public class TennisService {
         return matchResult;
     }
 
+
+    @CacheResult(cacheName = "players-cache")
+    public List<Player> findAllPlayers() {
+        Log.info("#findAllPlayers()");
+        return Player.listAll();
+    }
+
     @SneakyThrows
+    @CacheInvalidateAll(cacheName = "players-cache")
     public Player savePlayer(CreatePlayerDto dto) {
         Player player = Player.ofDto(dto);
         player.persist();
@@ -172,38 +182,6 @@ public class TennisService {
         return predicates;
     }
 
-    private PlayerStatsDto getPlayerStatisticDto(List<MatchResult> matches) {
-        int wins = (int) matches.stream().filter(MatchResult::isWinner).count();
-        int scored = matches.stream().mapToInt(MatchResult::getScored).sum();
-        int missed = matches.stream().mapToInt(MatchResult::getMissed).sum();
-
-        return PlayerStatsDto.builder()
-                .matches(matches.size())
-                .wins(wins)
-                .loses(matches.size() - wins)
-                .winRate(divide(wins * 100, matches.size()))
-                .winStreak(longestStreak(matches, MatchResult::isWinner))
-                .loseStreak(longestStreak(matches, mr -> !mr.isWinner()))
-                .pointsScored(scored)
-                .avgPointsScored(divide(scored, matches.size()))
-                .medianPointsScored(getMedianValue(matches, MatchResult::getScored))
-                .pointsMissed(missed)
-                .avgPointsMissed(divide(missed, matches.size()))
-                .medianPointsMissed(getMedianValue(matches, MatchResult::getMissed))
-                .pointsRate(divide(scored, missed))
-                .overtimes((int) matches.stream().filter(MatchResult::isExtraRound).count())
-                .build();
-    }
-
-    private int getMedianValue(List<MatchResult> matches,
-                               ToDoubleFunction<? super MatchResult> valueExtractor) {
-        return StatsUtils.median(
-                matches.stream()
-                        .mapToDouble(valueExtractor)
-                        .sorted()
-                        .toArray());
-    }
-
 
     public PlayerMatchesResponse getPlayerMatches(String name, PlayerStatsFilters filters, boolean growSort, boolean formatted) {
         Player player = Player.findByName(name);
@@ -213,7 +191,7 @@ public class TennisService {
                 .toList();
 
         List<PlayerMatchesResponse.PlayerMatchDetailsDto> playerMatchDetailsDtos = filtered.stream()
-                .map(this::getMatchDetails)
+                .map(ConverterUtils::getMatchDetailsDto)
                 .sorted(Comparator.comparing(PlayerMatchesResponse.PlayerMatchDetailsDto::getScoreDifference,
                         growSort ? Comparator.naturalOrder() : Comparator.reverseOrder()))
                 .toList();
@@ -229,19 +207,10 @@ public class TennisService {
         }
     }
 
-    private PlayerMatchesResponse.PlayerMatchDetailsDto getMatchDetails(MatchResult mr) {
-        return PlayerMatchesResponse.PlayerMatchDetailsDto.builder()
-                .matchType(mr.getMatch().type)
-                .name(mr.getPlayer().name)
-                .score(mr.getScored())
-                .opponentName(mr.getOpponent().name)
-                .opponentScore(mr.getMissed())
-                .stage(mr.getMatch().stage.getDetails())
-                .tournamentName(Optional.ofNullable(mr.getMatch().tournament).map(t -> t.fullName).orElse(""))
-                .build();
-    }
 
+    @CacheResult(cacheName = "records-cache")
     public RecordsResponse getRecords() {
+        Log.info("#getRecords()");
         List<MatchResult> allMatches = matchResultRepo.listAll();
         return new RecordsResponse(
                 StatsUtils.linkedHashMapMatchType(
@@ -347,29 +316,10 @@ public class TennisService {
                 getPlayerStats(name, filters));
     }
 
-    public TournamentHistoryResponse getTournamentHistory(Long id) {
-        var tournament = (Tournament)
-                Tournament.findByIdOptional(id).orElseThrow(() -> new TennisApiException("Not found tournament", 404));
-        var allMatches = matchResultRepo.findAllDistinct().stream()
-                .filter(mr -> mr.getMatch().tournament != null)
-                .filter(mr -> mr.getMatch().tournament.id.equals(id))
-                .sorted(Comparator.comparing(mr -> mr.getMatch().stage.ordinal()))
-                .toList();
 
-        LinkedHashMap<TournamentStage, List<String>> history = allMatches.stream()
-                .collect(Collectors.groupingBy(
-                        mr -> mr.getMatch().stage,
-                        LinkedHashMap::new,
-                        Collectors.mapping(mr -> getMatchDetails(mr).getRepresentation(), Collectors.toList())));
-
-        return new TournamentHistoryResponse(
-                tournament,
-                null,
-                history
-        );
-    }
-
+    @CacheResult(cacheName = "ratings-cache")
     public RatingsResponse getRatings() {
+        Log.info("#getRatings()");
         List<MatchResult> allMatches = matchResultRepo.listAll();
 
         return new RatingsResponse(

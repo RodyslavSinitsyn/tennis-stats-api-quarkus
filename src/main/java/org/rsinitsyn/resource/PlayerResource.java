@@ -30,7 +30,7 @@ public class PlayerResource {
     @Path("/all")
     @Produces(MediaType.APPLICATION_JSON)
     public List<Player> getAll() {
-        return Player.listAll();
+        return service.findAllPlayers();
     }
 
     @GET
