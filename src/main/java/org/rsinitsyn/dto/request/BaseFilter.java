@@ -9,9 +9,13 @@ import org.rsinitsyn.domain.TournamentStage;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class BaseStatsFilter {
+public class BaseFilter {
     @QueryParam("tournament")
     private String tournament;
     @QueryParam("stage")
     private TournamentStage stage;
+
+    public String getOpponent() {
+        return null;
+    }
 }

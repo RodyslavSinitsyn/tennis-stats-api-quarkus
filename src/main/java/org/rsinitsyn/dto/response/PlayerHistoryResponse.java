@@ -1,6 +1,7 @@
 package org.rsinitsyn.dto.response;
 
 import java.util.List;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -8,13 +9,13 @@ import lombok.Data;
 @Data
 @AllArgsConstructor
 public class PlayerHistoryResponse {
-    private PlayerStatsHistoryListDto allHistory;
-    private PlayerStatsHistoryListDto shortHistory;
-    private PlayerStatsHistoryListDto longHistory;
+    private int matchesChunkSize;
+    private Map<String, PlayerStatsHistoryListDto> history;
 
     @Builder
     @Data
     public static class PlayerStatsHistoryListDto {
+        private int matchesCount;
         private List<Double> winRate;
         private List<Double> avgPointsScored;
         private List<Double> avgPointsMissed;

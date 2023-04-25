@@ -12,12 +12,15 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import org.apache.commons.lang3.ObjectUtils;
+import org.rsinitsyn.domain.MatchType;
 import org.rsinitsyn.domain.Player;
-import org.rsinitsyn.dto.request.BaseStatsFilter;
+import org.rsinitsyn.dto.request.BaseFilter;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
-import org.rsinitsyn.dto.request.PlayerStatsFilters;
+import org.rsinitsyn.dto.request.PlayerFilters;
 import org.rsinitsyn.dto.response.PlayerHistoryResponse;
 import org.rsinitsyn.dto.response.PlayerMatchesResponse;
+import org.rsinitsyn.dto.response.PlayerProgressResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse;
 import org.rsinitsyn.service.TennisService;
 
@@ -38,7 +41,7 @@ public class PlayerResource {
     @Path("/stats/{name}/csv")
     @Produces(MediaType.APPLICATION_OCTET_STREAM)
     public Response getStatsByPlayerNameInCsv(@PathParam("name") String name,
-                                              @BeanParam PlayerStatsFilters filters) {
+                                              @BeanParam PlayerFilters filters) {
         return Response.ok(service.getPlayerStatsCsv(name, filters))
                 .header("Content-disposition", "attachment; filename=stats.csv")
                 .build();
@@ -48,7 +51,7 @@ public class PlayerResource {
     @Path("/stats/{name}/xlsx")
     @Produces(MediaType.APPLICATION_OCTET_STREAM)
     public Response getStatsByPlayerNameInExcel(@PathParam("name") String name,
-                                                @BeanParam BaseStatsFilter filters) {
+                                                @BeanParam BaseFilter filters) {
         return Response.ok(service.getPlayerStatsExcel(name, filters))
                 .header("Content-disposition", "attachment; filename=stats.xlsx")
                 .build();
@@ -59,15 +62,25 @@ public class PlayerResource {
     @Path("/stats/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     public PlayerStatsResponse getStatsByPlayerName(@PathParam("name") String name,
-                                                    @BeanParam PlayerStatsFilters filters) {
+                                                    @BeanParam PlayerFilters filters) {
         return service.getPlayerStats(name, filters);
+    }
+
+    @GET
+    @Path("/history/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public PlayerHistoryResponse getHistoryByPlayerName(@PathParam("name") String name,
+                                                        @BeanParam BaseFilter filters,
+                                                        @QueryParam("chunkSize") Integer chunkSize) {
+        chunkSize = ObjectUtils.defaultIfNull(chunkSize, 1);
+        return service.getPlayerHistory(name, filters, chunkSize);
     }
 
     @GET
     @Path("/matches/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     public PlayerMatchesResponse getMatchesHistoryByPlayerName(@PathParam("name") String name,
-                                                               @BeanParam PlayerStatsFilters filters,
+                                                               @BeanParam PlayerFilters filters,
                                                                @QueryParam("growSort") boolean growSort) {
         return service.getPlayerMatches(name, filters, growSort, false);
     }
@@ -76,16 +89,17 @@ public class PlayerResource {
     @Path("/matches-formatted/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     public PlayerMatchesResponse getFormattedMatchesHistoryByPlayerName(@PathParam("name") String name,
-                                                                        @BeanParam PlayerStatsFilters filters,
+                                                                        @BeanParam PlayerFilters filters,
                                                                         @QueryParam("growSort") boolean growSort) {
         return service.getPlayerMatches(name, filters, growSort, true);
     }
 
     @GET
-    @Path("/history/{name}")
+    @Path("/progress/{name}")
     @Produces(MediaType.APPLICATION_JSON)
-    public PlayerHistoryResponse getHistoryByPlayerName(@PathParam("name") String name) {
-        return service.getPlayerHistory(name);
+    public PlayerProgressResponse getPlayerProgress(@PathParam("name") String name,
+                                                    @QueryParam("type") MatchType matchType) {
+        return service.getPlayerProgressPerDay(name, matchType);
     }
 
     @POST

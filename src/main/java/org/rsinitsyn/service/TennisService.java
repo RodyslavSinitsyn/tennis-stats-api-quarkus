@@ -4,15 +4,20 @@ import io.quarkus.cache.CacheInvalidateAll;
 import io.quarkus.cache.CacheResult;
 import io.quarkus.logging.Log;
 import java.io.ByteArrayInputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -27,12 +32,13 @@ import org.rsinitsyn.domain.MatchType;
 import org.rsinitsyn.domain.Player;
 import org.rsinitsyn.domain.Tournament;
 import org.rsinitsyn.domain.TournamentStage;
-import org.rsinitsyn.dto.request.BaseStatsFilter;
+import org.rsinitsyn.dto.request.BaseFilter;
 import org.rsinitsyn.dto.request.CreateMatchDto;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
-import org.rsinitsyn.dto.request.PlayerStatsFilters;
+import org.rsinitsyn.dto.request.PlayerFilters;
 import org.rsinitsyn.dto.response.PlayerHistoryResponse;
 import org.rsinitsyn.dto.response.PlayerMatchesResponse;
+import org.rsinitsyn.dto.response.PlayerProgressResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse.PlayerStatsDto;
 import org.rsinitsyn.dto.response.RatingsResponse;
@@ -144,7 +150,7 @@ public class TennisService {
         return player;
     }
 
-    public PlayerStatsResponse getPlayerStats(String name, PlayerStatsFilters filtersDto) {
+    public PlayerStatsResponse getPlayerStats(String name, PlayerFilters filtersDto) {
         var player = Player.findByName(name);
         List<MatchResult> filtered = player.matches
                 .stream()
@@ -169,7 +175,7 @@ public class TennisService {
         );
     }
 
-    private List<Predicate<MatchResult>> getFilters(PlayerStatsFilters filters) {
+    private List<Predicate<MatchResult>> getFilters(BaseFilter filters) {
         List<Predicate<MatchResult>> predicates = new ArrayList<>();
         if (StringUtils.isNotEmpty(filters.getOpponent())) {
             predicates.add(mr -> mr.getOpponent().name.equals(filters.getOpponent()));
@@ -185,8 +191,7 @@ public class TennisService {
         return predicates;
     }
 
-
-    public PlayerMatchesResponse getPlayerMatches(String name, PlayerStatsFilters filters, boolean growSort, boolean formatted) {
+    public PlayerMatchesResponse getPlayerMatches(String name, PlayerFilters filters, boolean growSort, boolean formatted) {
         Player player = Player.findByName(name);
         List<MatchResult> filtered = player.matches.stream()
                 .filter(matchResult -> getFilters(filters).stream().allMatch(p -> p.test(matchResult)))
@@ -308,22 +313,24 @@ public class TennisService {
         );
     }
 
-    public ByteArrayInputStream getPlayerStatsExcel(String name, BaseStatsFilter filters) {
+    public ByteArrayInputStream getPlayerStatsExcel(String name, BaseFilter filters) {
         return excelReportService.generateStatsReport(
                 getPlayerStats(name,
-                        new PlayerStatsFilters(filters.getTournament(), filters.getStage(), null)));
+                        new PlayerFilters(filters.getTournament(), filters.getStage(), null)));
     }
 
-    public ByteArrayInputStream getPlayerStatsCsv(String name, PlayerStatsFilters filters) {
+    public ByteArrayInputStream getPlayerStatsCsv(String name, PlayerFilters filters) {
         return csvReportService.generateStatsReport(
                 getPlayerStats(name, filters));
     }
 
 
     @CacheResult(cacheName = "ratings-cache")
-    public RatingsResponse getRatings() {
+    public RatingsResponse getRatings(BaseFilter filter) {
         Log.info("#getRatings()");
-        List<MatchResult> allMatches = matchResultRepo.listAll();
+        List<MatchResult> allMatches = matchResultRepo.streamAll()
+                .filter(mr -> getFilters(filter).stream().allMatch(p -> p.test(mr)))
+                .toList();
 
         return new RatingsResponse(
                 StatsUtils.linkedHashMapMatchType(
@@ -365,39 +372,131 @@ public class TennisService {
                 .toList();
     }
 
-    public PlayerHistoryResponse getPlayerHistory(String playerName) {
-        Set<MatchResult> allMatches = Player.findByName(playerName).matches;
+    public PlayerHistoryResponse getPlayerHistory(String playerName, BaseFilter filters, Integer chunkSize) {
+        List<Predicate<MatchResult>> predicates = getFilters(filters);
+        var allMatches = Player.findByName(playerName).matches.stream()
+                .filter(matchResult -> predicates.stream().allMatch(p -> p.test(matchResult)))
+                .toList();
 
         return new PlayerHistoryResponse(
-                getHistoryDtoList(new ArrayList<>(allMatches)),
-                getHistoryDtoList(filterByType(allMatches, SHORT)),
-                getHistoryDtoList(filterByType(allMatches, LONG))
+                chunkSize,
+                StatsUtils.linkedHashMapMatchType(
+                        getHistoryDtoList(allMatches, chunkSize),
+                        getHistoryDtoList(filterByType(allMatches, SHORT), chunkSize),
+                        getHistoryDtoList(filterByType(allMatches, LONG), chunkSize))
         );
     }
 
-    private PlayerHistoryResponse.PlayerStatsHistoryListDto getHistoryDtoList(List<MatchResult> matches) {
+    private PlayerHistoryResponse.PlayerStatsHistoryListDto getHistoryDtoList(List<MatchResult> matches, int chunkSize) {
         return PlayerHistoryResponse.PlayerStatsHistoryListDto.builder()
-                .winRate(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getWinRate))
-                .avgPointsScored(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getAvgPointsScored))
-                .avgPointsMissed(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getAvgPointsMissed))
-                .pointsRate(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getPointsRate))
+                .matchesCount(matches.size())
+                .winRate(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getWinRate, chunkSize))
+                .avgPointsScored(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getAvgPointsScored, chunkSize))
+                .avgPointsMissed(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getAvgPointsMissed, chunkSize))
+                .pointsRate(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getPointsRate, chunkSize))
                 .build();
     }
 
     private <T> List<T> getHistoryOfSpecificStatsFromMatches(List<MatchResult> matches,
-                                                             Function<PlayerStatsDto, T> valueExtractor) {
+                                                             Function<PlayerStatsDto, T> valueExtractor,
+                                                             int chunkSize) {
         List<MatchResult> sortedList = matches.stream().sorted(Comparator.comparing(mr -> mr.getMatch().date)).toList();
         List<T> result = new ArrayList<>();
         int totalMatchesCount = matches.size();
-        int limiter = 1;
-        while (limiter < totalMatchesCount) {
+
+        int chunkCounter = 1;
+        int chunksSize = BigDecimal.valueOf(totalMatchesCount).divide(BigDecimal.valueOf(chunkSize), RoundingMode.UP).intValue();
+
+        int currChunkSize = chunkSize;
+        while (chunkCounter <= chunksSize) {
             List<MatchResult> matchesChunk =
                     sortedList.stream()
-                            .limit(limiter)
+                            .limit(currChunkSize)
                             .toList();
             result.add(valueExtractor.apply(getPlayerStatisticDto(matchesChunk)));
-            limiter++;
+            currChunkSize = Math.min(currChunkSize + chunkSize, totalMatchesCount);
+            chunkCounter++;
         }
         return result;
+    }
+
+    public PlayerProgressResponse getPlayerProgressPerDay(String name, MatchType matchType) {
+        var allMatches = Player.findByName(name).matches;
+        var filtered = matchType == null
+                ? allMatches
+                : filterByType(allMatches, matchType);
+
+        var groupedByDay = filtered.stream()
+                .sorted(Comparator.comparing(mr -> mr.getMatch().date))
+                .collect(Collectors.groupingBy(
+                        mr -> LocalDate.ofInstant(mr.getMatch().date, ZoneId.systemDefault()),
+                        LinkedHashMap::new,
+                        Collectors.toList()));
+
+        if (groupedByDay.size() < 2) {
+            throw new TennisApiException("Cannot get progress of player due to lack of matches");
+        }
+
+        List<PlayerProgressResponse.PlayerProgressIntervalDto> intervals = new ArrayList<>();
+        Iterator<Map.Entry<LocalDate, List<MatchResult>>> iterator = groupedByDay.entrySet().iterator();
+
+        Map.Entry<LocalDate, List<MatchResult>> beforeEntry;
+        Map.Entry<LocalDate, List<MatchResult>> afterEntry = null;
+
+        while (iterator.hasNext()) {
+            if (afterEntry != null) {
+                beforeEntry = afterEntry;
+                afterEntry = iterator.next();
+            } else {
+                beforeEntry = iterator.next();
+            }
+            if (afterEntry == null) {
+                afterEntry = iterator.next();
+            }
+            intervals.add(getProgressIntervalDto(beforeEntry, afterEntry));
+        }
+
+        return new PlayerProgressResponse(
+                matchType,
+                intervals.size(),
+                intervals);
+    }
+
+    private PlayerProgressResponse.PlayerProgressIntervalDto getProgressIntervalDto(Map.Entry<LocalDate, List<MatchResult>> beforeEntry,
+                                                                                    Map.Entry<LocalDate, List<MatchResult>> afterEntry) {
+        return new PlayerProgressResponse.PlayerProgressIntervalDto(
+                beforeEntry.getKey(),
+                afterEntry.getKey(),
+                getProgressListDto(beforeEntry.getValue(), afterEntry.getValue()));
+    }
+
+    private PlayerProgressResponse.PlayerProgressDifferenceListDto getProgressListDto(List<MatchResult> beforeMatches,
+                                                                                      List<MatchResult> afterMatches) {
+        PlayerStatsDto beforeStats = getPlayerStatisticDto(beforeMatches);
+        PlayerStatsDto afterStats = getPlayerStatisticDto(afterMatches);
+
+        return PlayerProgressResponse.PlayerProgressDifferenceListDto.builder()
+                .winRate(getProgressDifferenceDto(beforeStats.getWinRate(), afterStats.getWinRate()))
+                .avgPointsScored(getProgressDifferenceDto(beforeStats.getAvgPointsScored(), afterStats.getAvgPointsScored()))
+                .avgPointsMissed(getProgressDifferenceDto(beforeStats.getAvgPointsMissed(), afterStats.getAvgPointsMissed()))
+                .pointsRate(getProgressDifferenceDto(beforeStats.getPointsRate(), afterStats.getPointsRate()))
+                .build();
+    }
+
+    private PlayerProgressResponse.PlayerProgressDifferenceDto getProgressDifferenceDto(double valBefore, double valAfter) {
+        double doubleDiff = BigDecimal.valueOf(valAfter - valBefore).setScale(2, RoundingMode.HALF_UP).doubleValue();
+        double percentDiff = StatsUtils.divide((int) (doubleDiff * 100), (int) valBefore);
+        return new PlayerProgressResponse.PlayerProgressDifferenceDto(
+                valBefore,
+                valAfter,
+                appendPlusSymbolIfNeeded(doubleDiff),
+                appendPlusSymbolIfNeeded(percentDiff) + "%"
+        );
+    }
+
+    private String appendPlusSymbolIfNeeded(double val) {
+        return val > 0
+                ? "+" + val
+                : "" + val;
     }
 }

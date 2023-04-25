@@ -7,11 +7,11 @@ import org.rsinitsyn.domain.TournamentStage;
 
 @Data
 @NoArgsConstructor
-public class PlayerStatsFilters extends BaseStatsFilter {
+public class PlayerFilters extends BaseFilter {
     @QueryParam("opponent")
     private String opponent;
 
-    public PlayerStatsFilters(String tournament, TournamentStage stage, String opponent) {
+    public PlayerFilters(String tournament, TournamentStage stage, String opponent) {
         super(tournament, stage);
         this.opponent = opponent;
     }
