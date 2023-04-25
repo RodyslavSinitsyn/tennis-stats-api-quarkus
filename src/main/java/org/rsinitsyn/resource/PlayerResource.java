@@ -16,6 +16,7 @@ import org.rsinitsyn.domain.Player;
 import org.rsinitsyn.dto.request.BaseStatsFilter;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
 import org.rsinitsyn.dto.request.PlayerStatsFilters;
+import org.rsinitsyn.dto.response.PlayerHistoryResponse;
 import org.rsinitsyn.dto.response.PlayerMatchesResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse;
 import org.rsinitsyn.service.TennisService;
@@ -78,6 +79,13 @@ public class PlayerResource {
                                                                         @BeanParam PlayerStatsFilters filters,
                                                                         @QueryParam("growSort") boolean growSort) {
         return service.getPlayerMatches(name, filters, growSort, true);
+    }
+
+    @GET
+    @Path("/history/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public PlayerHistoryResponse getHistoryByPlayerName(@PathParam("name") String name) {
+        return service.getPlayerHistory(name);
     }
 
     @POST

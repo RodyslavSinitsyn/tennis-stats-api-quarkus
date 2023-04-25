@@ -7,10 +7,12 @@ import java.io.ByteArrayInputStream;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -29,6 +31,7 @@ import org.rsinitsyn.dto.request.BaseStatsFilter;
 import org.rsinitsyn.dto.request.CreateMatchDto;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
 import org.rsinitsyn.dto.request.PlayerStatsFilters;
+import org.rsinitsyn.dto.response.PlayerHistoryResponse;
 import org.rsinitsyn.dto.response.PlayerMatchesResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse.PlayerStatsDto;
@@ -221,7 +224,7 @@ public class TennisService {
         );
     }
 
-    private List<MatchResult> filterByType(List<MatchResult> matchResults, MatchType... types) {
+    private List<MatchResult> filterByType(Collection<MatchResult> matchResults, MatchType... types) {
         return matchResults.stream()
                 .filter(mr -> Arrays.asList(types).contains(mr.getMatch().type))
                 .toList();
@@ -360,5 +363,41 @@ public class TennisService {
                         String.valueOf(valueExtractor.apply(e.getValue()))
                 ))
                 .toList();
+    }
+
+    public PlayerHistoryResponse getPlayerHistory(String playerName) {
+        Set<MatchResult> allMatches = Player.findByName(playerName).matches;
+
+        return new PlayerHistoryResponse(
+                getHistoryDtoList(new ArrayList<>(allMatches)),
+                getHistoryDtoList(filterByType(allMatches, SHORT)),
+                getHistoryDtoList(filterByType(allMatches, LONG))
+        );
+    }
+
+    private PlayerHistoryResponse.PlayerStatsHistoryListDto getHistoryDtoList(List<MatchResult> matches) {
+        return PlayerHistoryResponse.PlayerStatsHistoryListDto.builder()
+                .winRate(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getWinRate))
+                .avgPointsScored(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getAvgPointsScored))
+                .avgPointsMissed(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getAvgPointsMissed))
+                .pointsRate(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getPointsRate))
+                .build();
+    }
+
+    private <T> List<T> getHistoryOfSpecificStatsFromMatches(List<MatchResult> matches,
+                                                             Function<PlayerStatsDto, T> valueExtractor) {
+        List<MatchResult> sortedList = matches.stream().sorted(Comparator.comparing(mr -> mr.getMatch().date)).toList();
+        List<T> result = new ArrayList<>();
+        int totalMatchesCount = matches.size();
+        int limiter = 1;
+        while (limiter < totalMatchesCount) {
+            List<MatchResult> matchesChunk =
+                    sortedList.stream()
+                            .limit(limiter)
+                            .toList();
+            result.add(valueExtractor.apply(getPlayerStatisticDto(matchesChunk)));
+            limiter++;
+        }
+        return result;
     }
 }

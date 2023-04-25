@@ -8,7 +8,7 @@ import org.rsinitsyn.dto.request.PlayerStatsFilters;
 
 @Data
 @AllArgsConstructor
-public class PlayerStatsResponse {
+public class    PlayerStatsResponse {
     private String playerShortName;
     private PlayerStatsFilters filters;
     private PlayerStatsDto overallStats;

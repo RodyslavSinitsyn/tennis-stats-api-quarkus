@@ -52,6 +52,7 @@ public class ConverterUtils {
         return StatsUtils.median(
                 matches.stream()
                         .mapToDouble(valueExtractor)
+                        .distinct()
                         .sorted()
                         .toArray());
     }

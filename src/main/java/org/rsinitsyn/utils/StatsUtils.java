@@ -29,7 +29,7 @@ public class StatsUtils {
     public static int longestStreak(List<MatchResult> matches,
                                     Predicate<MatchResult> predicate) {
         AtomicInteger currStreak = new AtomicInteger(0);
-        AtomicInteger maxStreak = new AtomicInteger(-1);
+        AtomicInteger maxStreak = new AtomicInteger(0);
         matches.stream()
                 .sorted(Comparator.comparing(mr -> mr.getMatch().date))
                 .forEach(mr -> {
