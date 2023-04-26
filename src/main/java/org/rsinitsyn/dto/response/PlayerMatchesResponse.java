@@ -2,6 +2,7 @@ package org.rsinitsyn.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,8 +12,8 @@ import org.rsinitsyn.utils.StatsUtils;
 @Data
 @AllArgsConstructor
 public class PlayerMatchesResponse {
-    private List<PlayerMatchDetailsDto> matches;
-    private List<String> formattedMatches;
+    private Map<String, List<PlayerMatchDetailsDto>> matches;
+    private Map<String, List<String>> formattedMatches;
 
     @Builder
     @Data

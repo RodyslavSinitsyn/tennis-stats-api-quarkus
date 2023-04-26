@@ -77,6 +77,18 @@ public class PlayerResource {
     }
 
     @GET
+    @Path("/history/{name}/xlsx")
+    @Produces(MediaType.APPLICATION_OCTET_STREAM)
+    public Response getHistoryByPlayerNameInExcel(@PathParam("name") String name,
+                                                  @BeanParam BaseFilter filters,
+                                                  @QueryParam("chunkSize") Integer chunkSize) {
+        chunkSize = ObjectUtils.defaultIfNull(chunkSize, 1);
+        return Response.ok(service.getPlayerHistoryInExcel(name, filters, chunkSize))
+                .header("Content-disposition", "attachment; filename=history.xlsx")
+                .build();
+    }
+
+    @GET
     @Path("/matches/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     public PlayerMatchesResponse getMatchesHistoryByPlayerName(@PathParam("name") String name,

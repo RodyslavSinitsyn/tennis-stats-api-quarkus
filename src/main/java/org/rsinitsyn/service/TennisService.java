@@ -161,8 +161,8 @@ public class TennisService {
                 filtersDto,
                 getPlayerStatisticDto(filtered),
                 StatsUtils.linkedHashMapMatchType(
-                        getPlayerStatisticDto(filtered.stream().filter(mr -> mr.getMatch().type.equals(SHORT)).toList()),
-                        getPlayerStatisticDto(filtered.stream().filter(mr -> mr.getMatch().type.equals(LONG)).toList())
+                        getPlayerStatisticDto(filterByType(filtered, SHORT)),
+                        getPlayerStatisticDto(filterByType(filtered, LONG))
                 ),
                 filtered.stream().map(MatchResult::getOpponent)
                         .collect(Collectors.toSet())
@@ -198,21 +198,31 @@ public class TennisService {
                 .sorted(Comparator.comparing(mr -> mr.getMatch().date, Comparator.reverseOrder()))
                 .toList();
 
-        List<PlayerMatchesResponse.PlayerMatchDetailsDto> playerMatchDetailsDtos = filtered.stream()
+
+        if (formatted) {
+            return new PlayerMatchesResponse(
+                    null, StatsUtils.linkedHashMapMatchType(
+                    getPlayerMatchDetailsDtoList(filtered, growSort, SHORT).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList(),
+                    getPlayerMatchDetailsDtoList(filtered, growSort, LONG).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList()
+            ));
+        } else {
+            return new PlayerMatchesResponse(
+                    StatsUtils.linkedHashMapMatchType(
+                            getPlayerMatchDetailsDtoList(filtered, growSort, SHORT),
+                            getPlayerMatchDetailsDtoList(filtered, growSort, LONG)
+                    ), null);
+        }
+    }
+
+    private List<PlayerMatchesResponse.PlayerMatchDetailsDto> getPlayerMatchDetailsDtoList(List<MatchResult> matches,
+                                                                                           boolean growSort,
+                                                                                           MatchType matchType) {
+        return filterByType(matches, matchType)
+                .stream()
                 .map(ConverterUtils::getMatchDetailsDto)
                 .sorted(Comparator.comparing(PlayerMatchesResponse.PlayerMatchDetailsDto::getScoreDifference,
                         growSort ? Comparator.naturalOrder() : Comparator.reverseOrder()))
                 .toList();
-
-        if (formatted) {
-            return new PlayerMatchesResponse(
-                    null,
-                    playerMatchDetailsDtos.stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList());
-        } else {
-            return new PlayerMatchesResponse(
-                    playerMatchDetailsDtos,
-                    null);
-        }
     }
 
 
@@ -222,7 +232,7 @@ public class TennisService {
         List<MatchResult> allMatches = matchResultRepo.listAll();
         return new RecordsResponse(
                 StatsUtils.linkedHashMapMatchType(
-                        getRecordListDto(filterByType(allMatches, SHORT, LONG)),
+                        getRecordListDto(allMatches),
                         getRecordListDto(filterByType(allMatches, SHORT)),
                         getRecordListDto(filterByType(allMatches, LONG))
                 )
@@ -334,7 +344,7 @@ public class TennisService {
 
         return new RatingsResponse(
                 StatsUtils.linkedHashMapMatchType(
-                        getRatingListDto(filterByType(allMatches, SHORT, LONG)),
+                        getRatingListDto(allMatches),
                         getRatingListDto(filterByType(allMatches, SHORT)),
                         getRatingListDto(filterByType(allMatches, LONG))
                 )
@@ -359,10 +369,10 @@ public class TennisService {
                 .build();
     }
 
-    private List<PlayerValueDto> getRatingsList(Map<Player, PlayerStatsDto> map,
+    private List<PlayerValueDto> getRatingsList(Map<Player, PlayerStatsDto> playerAndStats,
                                                 Comparator<? super PlayerStatsDto> sortComparator,
                                                 Function<? super PlayerStatsDto, Object> valueExtractor) {
-        return map.entrySet()
+        return playerAndStats.entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByValue(sortComparator.reversed()))
                 .map(e -> new PlayerValueDto(
@@ -381,26 +391,38 @@ public class TennisService {
         return new PlayerHistoryResponse(
                 chunkSize,
                 StatsUtils.linkedHashMapMatchType(
-                        getHistoryDtoList(allMatches, chunkSize),
                         getHistoryDtoList(filterByType(allMatches, SHORT), chunkSize),
                         getHistoryDtoList(filterByType(allMatches, LONG), chunkSize))
         );
     }
 
+    public ByteArrayInputStream getPlayerHistoryInExcel(String name, BaseFilter filters, Integer chunkSize) {
+        List<Predicate<MatchResult>> predicates = getFilters(filters);
+        var allMatches = Player.findByName(name).matches.stream()
+                .filter(matchResult -> predicates.stream().allMatch(p -> p.test(matchResult)))
+                .toList();
+
+        return excelReportService.generateHistoryReport(
+                getHistoryDtoList(filterByType(allMatches, SHORT), chunkSize),
+                getHistoryDtoList(filterByType(allMatches, LONG), chunkSize));
+    }
+
     private PlayerHistoryResponse.PlayerStatsHistoryListDto getHistoryDtoList(List<MatchResult> matches, int chunkSize) {
+        List<MatchResult> sortedList = matches.stream().sorted(Comparator.comparing(mr -> mr.getMatch().date)).toList();
         return PlayerHistoryResponse.PlayerStatsHistoryListDto.builder()
                 .matchesCount(matches.size())
-                .winRate(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getWinRate, chunkSize))
-                .avgPointsScored(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getAvgPointsScored, chunkSize))
-                .avgPointsMissed(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getAvgPointsMissed, chunkSize))
-                .pointsRate(getHistoryOfSpecificStatsFromMatches(matches, PlayerStatsDto::getPointsRate, chunkSize))
+                .winRate(getHistoryOfSpecificStatsFromMatches(sortedList, PlayerStatsDto::getWinRate, chunkSize))
+                .pointsScored(sortedList.stream().mapToDouble(MatchResult::getScored).boxed().toList())
+                .pointsMissed(sortedList.stream().mapToDouble(MatchResult::getMissed).boxed().toList())
+                .avgPointsScored(getHistoryOfSpecificStatsFromMatches(sortedList, PlayerStatsDto::getAvgPointsScored, chunkSize))
+                .avgPointsMissed(getHistoryOfSpecificStatsFromMatches(sortedList, PlayerStatsDto::getAvgPointsMissed, chunkSize))
+                .pointsRate(getHistoryOfSpecificStatsFromMatches(sortedList, PlayerStatsDto::getPointsRate, chunkSize))
                 .build();
     }
 
     private <T> List<T> getHistoryOfSpecificStatsFromMatches(List<MatchResult> matches,
                                                              Function<PlayerStatsDto, T> valueExtractor,
                                                              int chunkSize) {
-        List<MatchResult> sortedList = matches.stream().sorted(Comparator.comparing(mr -> mr.getMatch().date)).toList();
         List<T> result = new ArrayList<>();
         int totalMatchesCount = matches.size();
 
@@ -410,7 +432,7 @@ public class TennisService {
         int currChunkSize = chunkSize;
         while (chunkCounter <= chunksSize) {
             List<MatchResult> matchesChunk =
-                    sortedList.stream()
+                    matches.stream()
                             .limit(currChunkSize)
                             .toList();
             result.add(valueExtractor.apply(getPlayerStatisticDto(matchesChunk)));

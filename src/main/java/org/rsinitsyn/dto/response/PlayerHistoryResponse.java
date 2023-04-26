@@ -17,7 +17,9 @@ public class PlayerHistoryResponse {
     public static class PlayerStatsHistoryListDto {
         private int matchesCount;
         private List<Double> winRate;
+        private List<Double> pointsScored;
         private List<Double> avgPointsScored;
+        private List<Double> pointsMissed;
         private List<Double> avgPointsMissed;
         private List<Double> pointsRate;
     }

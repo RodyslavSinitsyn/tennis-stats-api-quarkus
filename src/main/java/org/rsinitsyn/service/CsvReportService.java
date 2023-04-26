@@ -10,6 +10,8 @@ import java.util.Map;
 import javax.enterprise.context.ApplicationScoped;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
+import org.apache.commons.lang3.NotImplementedException;
+import org.rsinitsyn.dto.response.PlayerHistoryResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse;
 import org.rsinitsyn.exception.TennisApiException;
 
@@ -43,6 +45,12 @@ public class CsvReportService implements ReportService {
         } catch (IOException e) {
             throw new TennisApiException("Fail to import data to CSV file", e, 500);
         }
+    }
+
+    @Override
+    public ByteArrayInputStream generateHistoryReport(PlayerHistoryResponse.PlayerStatsHistoryListDto shortHistory,
+                                                      PlayerHistoryResponse.PlayerStatsHistoryListDto longHistory) {
+        throw new NotImplementedException("Can't generate report for CSV");
     }
 
     private List<String> statsToTokens(String matchType,
