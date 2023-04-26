@@ -4,13 +4,13 @@ import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import org.rsinitsyn.dto.request.PlayerFilters;
+import org.rsinitsyn.dto.request.OpponentFilter;
 
 @Data
 @AllArgsConstructor
 public class    PlayerStatsResponse {
     private String playerShortName;
-    private PlayerFilters filters;
+    private OpponentFilter filters;
     private PlayerStatsDto overallStats;
     private Map<String, PlayerStatsDto> typeStats;
     private Map<String, Map<String, PlayerStatsDto>> versusPlayersStats;

@@ -1,5 +1,6 @@
 package org.rsinitsyn.service;
 
+import io.quarkus.logging.Log;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -81,6 +82,10 @@ public class ExcelReportService implements ReportService {
     }
 
     private void appendAllChartSheets(XSSFWorkbook workbook, PlayerStatsHistoryListDto history, MatchType matchType) throws IOException {
+        if (history.getMatchesCount() <= 0) {
+            Log.warn("Cannot generate report because zero matches player for type: " + matchType);
+            return;
+        }
         appendChartSheet(workbook, List.of(new ChartValuesDto(history.getWinRate(), "Win Rate")),
                 matchType.name() + " Win Rate", "Games Timeline", "Win Rate", 10, 110);
         appendChartSheet(workbook, List.of(new ChartValuesDto(history.getPointsRate(), "Points Rate")),
@@ -102,10 +107,7 @@ public class ExcelReportService implements ReportService {
                                   String bottomAxisName,
                                   String leftAxisName,
                                   double majorUnit,
-                                  double maximumValue) throws IOException {
-        if (valuesList.isEmpty() || valuesList.get(0).values.isEmpty()) {
-            throw new TennisApiException("Source list is empty");
-        }
+                                  double maximumValue) {
         int desiredValuesCount = valuesList.get(0).values.size();
         if (!valuesList.stream().allMatch(dto -> dto.values.size() == desiredValuesCount)) {
             throw new TennisApiException("The size of values list for chart is different, should be " + desiredValuesCount);

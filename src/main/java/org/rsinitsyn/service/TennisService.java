@@ -25,6 +25,7 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.transaction.Transactional;
 import lombok.SneakyThrows;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.rsinitsyn.domain.Match;
 import org.rsinitsyn.domain.MatchResult;
@@ -35,7 +36,7 @@ import org.rsinitsyn.domain.TournamentStage;
 import org.rsinitsyn.dto.request.BaseFilter;
 import org.rsinitsyn.dto.request.CreateMatchDto;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
-import org.rsinitsyn.dto.request.PlayerFilters;
+import org.rsinitsyn.dto.request.OpponentFilter;
 import org.rsinitsyn.dto.response.PlayerHistoryResponse;
 import org.rsinitsyn.dto.response.PlayerMatchesResponse;
 import org.rsinitsyn.dto.response.PlayerProgressResponse;
@@ -150,7 +151,7 @@ public class TennisService {
         return player;
     }
 
-    public PlayerStatsResponse getPlayerStats(String name, PlayerFilters filtersDto) {
+    public PlayerStatsResponse getPlayerStats(String name, OpponentFilter filtersDto) {
         var player = Player.findByName(name);
         List<MatchResult> filtered = player.matches
                 .stream()
@@ -185,13 +186,13 @@ public class TennisService {
                     .map(tournament -> tournament.name.equals(filters.getTournament()))
                     .orElse(Boolean.FALSE));
         }
-        if (filters.getStage() != null) {
-            predicates.add(mr -> mr.getMatch().stage.equals(filters.getStage()));
+        if (CollectionUtils.isNotEmpty(filters.getStages())) {
+            predicates.add(mr -> filters.getStages().contains(mr.getMatch().stage));
         }
         return predicates;
     }
 
-    public PlayerMatchesResponse getPlayerMatches(String name, PlayerFilters filters, boolean growSort, boolean formatted) {
+    public PlayerMatchesResponse getPlayerMatches(String name, OpponentFilter filters, boolean growSort, boolean formatted) {
         Player player = Player.findByName(name);
         List<MatchResult> filtered = player.matches.stream()
                 .filter(matchResult -> getFilters(filters).stream().allMatch(p -> p.test(matchResult)))
@@ -326,10 +327,10 @@ public class TennisService {
     public ByteArrayInputStream getPlayerStatsExcel(String name, BaseFilter filters) {
         return excelReportService.generateStatsReport(
                 getPlayerStats(name,
-                        new PlayerFilters(filters.getTournament(), filters.getStage(), null)));
+                        new OpponentFilter(filters.getTournament(), filters.getStages(), null)));
     }
 
-    public ByteArrayInputStream getPlayerStatsCsv(String name, PlayerFilters filters) {
+    public ByteArrayInputStream getPlayerStatsCsv(String name, OpponentFilter filters) {
         return csvReportService.generateStatsReport(
                 getPlayerStats(name, filters));
     }

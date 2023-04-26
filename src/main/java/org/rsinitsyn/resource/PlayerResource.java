@@ -17,7 +17,7 @@ import org.rsinitsyn.domain.MatchType;
 import org.rsinitsyn.domain.Player;
 import org.rsinitsyn.dto.request.BaseFilter;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
-import org.rsinitsyn.dto.request.PlayerFilters;
+import org.rsinitsyn.dto.request.OpponentFilter;
 import org.rsinitsyn.dto.response.PlayerHistoryResponse;
 import org.rsinitsyn.dto.response.PlayerMatchesResponse;
 import org.rsinitsyn.dto.response.PlayerProgressResponse;
@@ -41,7 +41,7 @@ public class PlayerResource {
     @Path("/stats/{name}/csv")
     @Produces(MediaType.APPLICATION_OCTET_STREAM)
     public Response getStatsByPlayerNameInCsv(@PathParam("name") String name,
-                                              @BeanParam PlayerFilters filters) {
+                                              @BeanParam OpponentFilter filters) {
         return Response.ok(service.getPlayerStatsCsv(name, filters))
                 .header("Content-disposition", "attachment; filename=stats.csv")
                 .build();
@@ -62,7 +62,7 @@ public class PlayerResource {
     @Path("/stats/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     public PlayerStatsResponse getStatsByPlayerName(@PathParam("name") String name,
-                                                    @BeanParam PlayerFilters filters) {
+                                                    @BeanParam OpponentFilter filters) {
         return service.getPlayerStats(name, filters);
     }
 
@@ -92,7 +92,7 @@ public class PlayerResource {
     @Path("/matches/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     public PlayerMatchesResponse getMatchesHistoryByPlayerName(@PathParam("name") String name,
-                                                               @BeanParam PlayerFilters filters,
+                                                               @BeanParam OpponentFilter filters,
                                                                @QueryParam("growSort") boolean growSort) {
         return service.getPlayerMatches(name, filters, growSort, false);
     }
@@ -101,7 +101,7 @@ public class PlayerResource {
     @Path("/matches-formatted/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     public PlayerMatchesResponse getFormattedMatchesHistoryByPlayerName(@PathParam("name") String name,
-                                                                        @BeanParam PlayerFilters filters,
+                                                                        @BeanParam OpponentFilter filters,
                                                                         @QueryParam("growSort") boolean growSort) {
         return service.getPlayerMatches(name, filters, growSort, true);
     }
