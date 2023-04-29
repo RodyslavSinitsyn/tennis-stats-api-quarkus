@@ -12,6 +12,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import org.rsinitsyn.domain.Tournament;
+import org.rsinitsyn.domain.TournamentType;
 import org.rsinitsyn.dto.response.TournamentHistoryResponse;
 import org.rsinitsyn.service.TournamentService;
 
@@ -29,10 +30,10 @@ public class TournamentResource {
     }
 
     @GET
-    @Path("/history/{id}")
+    @Path("/history/{name}")
     @Produces(MediaType.APPLICATION_JSON)
-    public TournamentHistoryResponse getTournamentHistory(@PathParam("id") Long id) {
-        return service.getTournamentHistory(id);
+    public TournamentHistoryResponse getTournamentHistory(@PathParam("name") String name) {
+        return service.getTournamentHistory(name);
     }
 
     @Transactional
@@ -40,8 +41,9 @@ public class TournamentResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Tournament save(@QueryParam(value = "name") String name,
+                           @QueryParam(value = "type") TournamentType type,
                            @QueryParam(value = "fullname") String fullname,
                            @QueryParam(value = "description") String description) {
-        return service.save(name, fullname, description);
+        return service.save(name, fullname, description, type);
     }
 }

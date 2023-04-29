@@ -1,8 +1,12 @@
 package org.rsinitsyn.utils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.ToDoubleFunction;
+import java.util.function.ToIntFunction;
+import java.util.stream.Collectors;
 import org.rsinitsyn.domain.MatchResult;
 import org.rsinitsyn.dto.response.PlayerMatchesResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse;
@@ -44,7 +48,22 @@ public class ConverterUtils {
                 .medianPointsMissed(getMedianValue(matches, MatchResult::getMissed))
                 .pointsRate(divide(scored, missed))
                 .overtimes((int) matches.stream().filter(MatchResult::isExtraRound).count())
+                .scoredTrend(getTrendValue(matches, MatchResult::getScored))
+                .missedTrend(getTrendValue(matches, MatchResult::getMissed))
                 .build();
+    }
+
+    private static Map<Integer, Integer> getTrendValue(List<MatchResult> matches,
+                                                       ToIntFunction<? super MatchResult> valueExtractor) {
+        return matches.stream()
+                .mapToInt(valueExtractor)
+//                .filter(value -> value != 11 && value != 21)
+                .boxed()
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey,
+                        e -> e.getValue().intValue()));
     }
 
     private static int getMedianValue(List<MatchResult> matches,
@@ -52,7 +71,6 @@ public class ConverterUtils {
         return StatsUtils.median(
                 matches.stream()
                         .mapToDouble(valueExtractor)
-                        .distinct()
                         .sorted()
                         .toArray());
     }

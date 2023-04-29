@@ -34,5 +34,8 @@ public class    PlayerStatsResponse {
         private final int medianPointsScored;
         private final int medianPointsMissed;
         private final double pointsRate;
+
+        private Map<Integer, Integer> scoredTrend;
+        private Map<Integer, Integer> missedTrend;
     }
 }

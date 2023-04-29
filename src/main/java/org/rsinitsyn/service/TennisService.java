@@ -37,6 +37,7 @@ import org.rsinitsyn.dto.request.BaseFilter;
 import org.rsinitsyn.dto.request.CreateMatchDto;
 import org.rsinitsyn.dto.request.CreatePlayerDto;
 import org.rsinitsyn.dto.request.OpponentFilter;
+import org.rsinitsyn.dto.response.MatchPredictionResponse;
 import org.rsinitsyn.dto.response.PlayerHistoryResponse;
 import org.rsinitsyn.dto.response.PlayerMatchesResponse;
 import org.rsinitsyn.dto.response.PlayerProgressResponse;
@@ -52,6 +53,7 @@ import org.rsinitsyn.utils.StatsUtils;
 
 import static org.rsinitsyn.domain.MatchType.LONG;
 import static org.rsinitsyn.domain.MatchType.SHORT;
+import static org.rsinitsyn.dto.response.MatchPredictionResponse.MatchPredictDto;
 import static org.rsinitsyn.utils.ConverterUtils.getPlayerStatisticDto;
 
 @ApplicationScoped
@@ -104,7 +106,7 @@ public class TennisService {
         return match;
     }
 
-    private void validateMatchDto(CreateMatchDto dto) {
+    public void validateMatchDto(CreateMatchDto dto) {
         int points = dto.type().getPoints();
         if (dto.player().score() < 0 || dto.opponentPlayer().score() < 0) {
             throw new TennisApiException("Score < 0", 400);
@@ -192,7 +194,7 @@ public class TennisService {
         return predicates;
     }
 
-    public PlayerMatchesResponse getPlayerMatches(String name, OpponentFilter filters, boolean growSort, boolean formatted) {
+    public PlayerMatchesResponse getPlayerMatches(String name, OpponentFilter filters, boolean sortField, boolean formatted) {
         Player player = Player.findByName(name);
         List<MatchResult> filtered = player.matches.stream()
                 .filter(matchResult -> getFilters(filters).stream().allMatch(p -> p.test(matchResult)))
@@ -203,14 +205,14 @@ public class TennisService {
         if (formatted) {
             return new PlayerMatchesResponse(
                     null, StatsUtils.linkedHashMapMatchType(
-                    getPlayerMatchDetailsDtoList(filtered, growSort, SHORT).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList(),
-                    getPlayerMatchDetailsDtoList(filtered, growSort, LONG).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList()
+                    getPlayerMatchDetailsDtoList(filtered, sortField, SHORT).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList(),
+                    getPlayerMatchDetailsDtoList(filtered, sortField, LONG).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList()
             ));
         } else {
             return new PlayerMatchesResponse(
                     StatsUtils.linkedHashMapMatchType(
-                            getPlayerMatchDetailsDtoList(filtered, growSort, SHORT),
-                            getPlayerMatchDetailsDtoList(filtered, growSort, LONG)
+                            getPlayerMatchDetailsDtoList(filtered, sortField, SHORT),
+                            getPlayerMatchDetailsDtoList(filtered, sortField, LONG)
                     ), null);
         }
     }
@@ -221,8 +223,9 @@ public class TennisService {
         return filterByType(matches, matchType)
                 .stream()
                 .map(ConverterUtils::getMatchDetailsDto)
-                .sorted(Comparator.comparing(PlayerMatchesResponse.PlayerMatchDetailsDto::getScoreDifference,
-                        growSort ? Comparator.naturalOrder() : Comparator.reverseOrder()))
+                .sorted(growSort
+                        ? Comparator.comparing(PlayerMatchesResponse.PlayerMatchDetailsDto::getScoreDifference, Comparator.reverseOrder())
+                        : Comparator.comparingInt(value -> 1))
                 .toList();
     }
 
@@ -521,5 +524,128 @@ public class TennisService {
         return val > 0
                 ? "+" + val
                 : "" + val;
+    }
+
+    public MatchPredictionResponse predictMatchWinner(String playerName, String opponentName, MatchType matchType) {
+        List<MatchPredictDto> predicts = getMatchPredictDtoList(
+                Player.findByName(playerName),
+                Player.findByName(opponentName),
+                matchType
+        );
+
+        return new MatchPredictionResponse(
+                predicts.stream().mapToDouble(MatchPredictDto::getProbability).sum(),
+                playerName,
+                opponentName,
+                predicts
+        );
+    }
+
+    private List<MatchPredictDto> getMatchPredictDtoList(Player player,
+                                                         Player opponent,
+                                                         MatchType matchType) {
+        double versusWeight = 2;
+        double generalWeight = 0.5;
+
+        Map<MatchPredictDto, List<Double>> allOutcomesAndPredictions = new LinkedHashMap<>();
+
+        appendDifferentPredictsToResult(allOutcomesAndPredictions,
+                filterByType(player.matches, matchType).stream()
+                        .filter(mr -> mr.getOpponent().equals(opponent)).toList(),
+                versusWeight,
+                matchType,
+                true);
+        appendDifferentPredictsToResult(allOutcomesAndPredictions, filterByType(player.matches, matchType), generalWeight, matchType, true);
+        appendDifferentPredictsToResult(allOutcomesAndPredictions, filterByType(opponent.matches, matchType), generalWeight, matchType, false);
+
+        allOutcomesAndPredictions.forEach((matchPredictDto, doubles) -> {
+            System.out.println(matchPredictDto.score() + " " + doubles);
+        });
+
+        return allOutcomesAndPredictions.entrySet()
+                .stream()
+                .map(e -> new MatchPredictDto(
+                        e.getKey().getScored(),
+                        e.getKey().getMissed(),
+                        calculateAveragePredict(e.getValue())
+                ))
+                .sorted(MatchPredictDto::compareTo)
+                .toList();
+    }
+
+    private double calculateAveragePredict(List<Double> values) {
+        return BigDecimal.valueOf(values.stream()
+                        .mapToDouble(value -> value)
+                        .average()
+                        .orElseThrow())
+                .setScale(2, RoundingMode.HALF_UP)
+                .doubleValue();
+    }
+
+    private void appendDifferentPredictsToResult(Map<MatchPredictDto, List<Double>> data,
+                                                 List<MatchResult> matchesToAnalyze,
+                                                 double weight,
+                                                 MatchType matchType,
+                                                 boolean predictSelf) {
+        int maxPoints = matchType.getPoints();
+        // Win
+        for (int i = 0; i < matchType.getPoints(); i++) {
+            var key = new MatchPredictDto(maxPoints, i);
+            double res = getMatchOutcomeRatio(matchesToAnalyze,
+                    predictSelf ? maxPoints : i,
+                    predictSelf ? i : maxPoints,
+                    matchType
+            );
+            data.putIfAbsent(key, new ArrayList<>());
+            data.get(key).add(res * weight);
+        }
+        // Lose
+        for (int i = 0; i < matchType.getPoints(); i++) {
+            var key = new MatchPredictDto(i, maxPoints);
+            double res = getMatchOutcomeRatio(matchesToAnalyze,
+                    predictSelf ? i : maxPoints,
+                    predictSelf ? maxPoints : i,
+                    matchType
+            );
+            data.putIfAbsent(key, new ArrayList<>());
+            data.get(key).add(res * weight);
+        }
+    }
+
+    private double getMatchOutcomeRatio(List<MatchResult> matches, int scored, int missed, MatchType type) {
+        var matchOutcome = new MatchPredictDto(scored, missed);
+        var outcomeCounts = matches.stream()
+                .map(mr -> new MatchPredictDto(mr.getScored(), mr.getMissed()))
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        final int totalOutcomesCount = type.getPoints() * 2 + (outcomeCounts.values().stream().mapToInt(Math::toIntExact).sum());
+
+        var outcomeHappenedTimes = outcomeCounts.entrySet().stream()
+                .filter(e -> e.getKey().equals(matchOutcome))
+                .findFirst()
+                .map(Map.Entry::getValue)
+                .orElse(0L);
+
+        PlayerStatsDto stats = getPlayerStatisticDto(matches);
+
+        boolean outcomeWin = scored > missed;
+        double winDiff = StatsUtils.divide((int) stats.getWinRate(), 100);
+
+        double wrWeight = outcomeWin
+                ? 1 + winDiff
+                : 1 - winDiff;
+
+        if (winDiff == 0 && outcomeWin) {
+            wrWeight = 0;
+        } else if (winDiff == 0) {
+            wrWeight = 2.0;
+        }
+
+        return BigDecimal.valueOf(Math.toIntExact(outcomeHappenedTimes) + 1)
+                .divide(BigDecimal.valueOf(totalOutcomesCount), 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+//                .multiply(BigDecimal.valueOf(wrWeight))
+                .setScale(4, RoundingMode.HALF_UP)
+                .doubleValue();
     }
 }

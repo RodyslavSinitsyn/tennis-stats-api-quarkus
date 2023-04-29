@@ -1,11 +1,11 @@
 package org.rsinitsyn.config;
 
-import javax.inject.Singleton;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.ext.ExceptionMapper;
+import javax.ws.rs.ext.Provider;
 import org.rsinitsyn.exception.TennisApiException;
 
-@Singleton
+@Provider
 public class RestExceptionHandler implements ExceptionMapper<TennisApiException> {
     @Override
     public Response toResponse(TennisApiException e) {

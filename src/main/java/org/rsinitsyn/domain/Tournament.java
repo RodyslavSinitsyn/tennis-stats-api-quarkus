@@ -5,6 +5,8 @@ import java.time.Instant;
 import java.util.Optional;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.EnumType;
+import javax.persistence.Enumerated;
 import javax.persistence.Table;
 
 @Entity
@@ -14,6 +16,8 @@ public class Tournament extends PanacheEntity {
     public String name;
     public String fullName;
     public String description;
+    @Enumerated(EnumType.STRING)
+    public TournamentType type;
     public Instant date = Instant.now();
 
     public static Optional<Tournament> findByName(String name) {

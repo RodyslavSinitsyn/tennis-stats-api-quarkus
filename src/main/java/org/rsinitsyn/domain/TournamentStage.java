@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 public enum TournamentStage {
     FRIENDLY("Товарняк"),
+    LEAGUE("Матч лиги"),
     GROUP("Групповой этап"),
     PLAY_OFF_UPPER_BRACKET("Плей-офф верхняя сетка"),
     PLAY_OFF_LOW_BRACKET("Плей-офф нижняя сетка"),

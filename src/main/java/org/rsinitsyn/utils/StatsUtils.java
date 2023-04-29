@@ -2,6 +2,7 @@ package org.rsinitsyn.utils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,6 +21,10 @@ public class StatsUtils {
                 .divide(BigDecimal.valueOf(
                         NumberUtils.max(divideOn, 1)), 2, RoundingMode.HALF_UP)
                 .doubleValue();
+    }
+
+    public static double calculatePercent(int oneHundredPercentValue, int neededValue) {
+        return divide((neededValue * 100), oneHundredPercentValue);
     }
 
     public static int median(double[] values) {
@@ -58,5 +63,19 @@ public class StatsUtils {
         map.put(MatchType.SHORT.name(), shortVal);
         map.put(MatchType.LONG.name(), longVal);
         return map;
+    }
+
+    public static BigDecimal multiplyForPredict(Double... valuesArg) {
+        final double DEFAULT = 0.045;
+        BigDecimal result = BigDecimal.valueOf(valuesArg[0] == 0 ? DEFAULT : valuesArg[0]);
+        double[] values = Arrays.stream(valuesArg)
+                .skip(1)
+                .mapToDouble(val -> val != 0 ? val : DEFAULT)
+                .toArray();
+        for (double value : values) {
+            result = result.multiply(BigDecimal.valueOf(value));
+
+        }
+        return result;
     }
 }
