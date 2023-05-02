@@ -18,6 +18,7 @@ import org.rsinitsyn.dto.request.BaseFilter;
 import org.rsinitsyn.dto.request.CreateMatchDto;
 import org.rsinitsyn.dto.request.ImportSingleMatchesDto;
 import org.rsinitsyn.dto.response.MatchPredictionResponse;
+import org.rsinitsyn.dto.response.RatingProgressResponse;
 import org.rsinitsyn.dto.response.RatingsResponse;
 import org.rsinitsyn.dto.response.RecordsResponse;
 import org.rsinitsyn.service.ImportService;
@@ -48,8 +49,18 @@ public class MatchResource {
     @GET
     @Path("/ratings")
     @Produces(value = MediaType.APPLICATION_JSON)
-    public RatingsResponse getRatings(@BeanParam BaseFilter filter) {
-        return service.getRatings(filter);
+    public RatingsResponse getRatings(@BeanParam BaseFilter filter,
+                                      @QueryParam("lastMatchesCount") Optional<Integer> limit) {
+        return service.getRatings(filter, limit);
+    }
+
+    @GET
+    @Path("/ratings/progress")
+    @Produces(value = MediaType.APPLICATION_JSON)
+    public RatingProgressResponse getRatingsProgress(@BeanParam BaseFilter filter,
+                                                     @QueryParam("type") Optional<MatchType> matchType,
+                                                     @QueryParam("chunkSize") Optional<Integer> chunkSize) {
+        return service.getProgressRating(matchType.orElse(MatchType.SHORT), filter, chunkSize.orElse(10));
     }
 
     @POST

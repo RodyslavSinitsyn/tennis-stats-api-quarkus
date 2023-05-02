@@ -57,7 +57,6 @@ public class ConverterUtils {
                                                        ToIntFunction<? super MatchResult> valueExtractor) {
         return matches.stream()
                 .mapToInt(valueExtractor)
-//                .filter(value -> value != 11 && value != 21)
                 .boxed()
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()))
                 .entrySet()

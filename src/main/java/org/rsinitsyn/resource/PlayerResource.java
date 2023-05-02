@@ -102,12 +102,12 @@ public class PlayerResource {
     @Produces(MediaType.APPLICATION_JSON)
     public PlayerMatchesResponse getFormattedMatchesHistoryByPlayerName(@PathParam("name") String name,
                                                                         @BeanParam OpponentFilter filters,
-                                                                        @QueryParam("growSort") boolean growSort) {
-        return service.getPlayerMatches(name, filters, growSort, true);
+                                                                        @QueryParam("growSort") boolean bestFirst) {
+        return service.getPlayerMatches(name, filters, bestFirst, true);
     }
 
     @GET
-    @Path("/progress/{name}")
+    @Path("/progress/day/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     public PlayerProgressResponse getPlayerProgress(@PathParam("name") String name,
                                                     @QueryParam("type") MatchType matchType) {

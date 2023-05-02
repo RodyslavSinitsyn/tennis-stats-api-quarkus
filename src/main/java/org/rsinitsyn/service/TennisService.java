@@ -27,6 +27,7 @@ import javax.transaction.Transactional;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.MutablePair;
 import org.rsinitsyn.domain.Match;
 import org.rsinitsyn.domain.MatchResult;
 import org.rsinitsyn.domain.MatchType;
@@ -43,9 +44,10 @@ import org.rsinitsyn.dto.response.PlayerMatchesResponse;
 import org.rsinitsyn.dto.response.PlayerProgressResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse;
 import org.rsinitsyn.dto.response.PlayerStatsResponse.PlayerStatsDto;
+import org.rsinitsyn.dto.response.RatingProgressResponse;
 import org.rsinitsyn.dto.response.RatingsResponse;
 import org.rsinitsyn.dto.response.RecordsResponse;
-import org.rsinitsyn.dto.response.RecordsResponse.RecordListDto.PlayerValueDto;
+import org.rsinitsyn.dto.response.RecordsResponse.PlayerValueDto;
 import org.rsinitsyn.exception.TennisApiException;
 import org.rsinitsyn.repo.MatchResultRepo;
 import org.rsinitsyn.utils.ConverterUtils;
@@ -63,14 +65,17 @@ public class TennisService {
     MatchResultRepo matchResultRepo;
     CsvReportService csvReportService;
     ExcelReportService excelReportService;
+    PredictService predictService;
 
     @Inject
     public TennisService(MatchResultRepo matchResultRepo,
                          CsvReportService csvReportService,
-                         ExcelReportService excelReportService) {
+                         ExcelReportService excelReportService,
+                         PredictService predictService) {
         this.matchResultRepo = matchResultRepo;
         this.csvReportService = csvReportService;
         this.excelReportService = excelReportService;
+        this.predictService = predictService;
     }
 
     public List<String> getAllMatchesRepresentations() {
@@ -82,7 +87,6 @@ public class TennisService {
         return matches.stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).collect(Collectors.toList());
     }
 
-    @CacheInvalidateAll(cacheName = "ratings-cache")
     @CacheInvalidateAll(cacheName = "records-cache")
     public Match saveMatch(CreateMatchDto dto) {
         validateMatchDto(dto);
@@ -155,17 +159,14 @@ public class TennisService {
 
     public PlayerStatsResponse getPlayerStats(String name, OpponentFilter filtersDto) {
         var player = Player.findByName(name);
-        List<MatchResult> filtered = player.matches
-                .stream()
-                .filter(matchResult -> getFilters(filtersDto).stream().allMatch(p -> p.test(matchResult)))
-                .toList();
+        List<MatchResult> filtered = filterMatches(player.matches, filtersDto);
         return new PlayerStatsResponse(
                 name,
                 filtersDto,
                 getPlayerStatisticDto(filtered),
                 StatsUtils.linkedHashMapMatchType(
-                        getPlayerStatisticDto(filterByType(filtered, SHORT)),
-                        getPlayerStatisticDto(filterByType(filtered, LONG))
+                        getPlayerStatisticDto(filterMatches(filtered, SHORT)),
+                        getPlayerStatisticDto(filterMatches(filtered, LONG))
                 ),
                 filtered.stream().map(MatchResult::getOpponent)
                         .collect(Collectors.toSet())
@@ -178,26 +179,10 @@ public class TennisService {
         );
     }
 
-    private List<Predicate<MatchResult>> getFilters(BaseFilter filters) {
-        List<Predicate<MatchResult>> predicates = new ArrayList<>();
-        if (StringUtils.isNotEmpty(filters.getOpponent())) {
-            predicates.add(mr -> mr.getOpponent().name.equals(filters.getOpponent()));
-        }
-        if (StringUtils.isNotEmpty(filters.getTournament())) {
-            predicates.add(mr -> Optional.ofNullable(mr.getMatch().tournament)
-                    .map(tournament -> tournament.name.equals(filters.getTournament()))
-                    .orElse(Boolean.FALSE));
-        }
-        if (CollectionUtils.isNotEmpty(filters.getStages())) {
-            predicates.add(mr -> filters.getStages().contains(mr.getMatch().stage));
-        }
-        return predicates;
-    }
-
-    public PlayerMatchesResponse getPlayerMatches(String name, OpponentFilter filters, boolean sortField, boolean formatted) {
+    public PlayerMatchesResponse getPlayerMatches(String name, OpponentFilter filters, boolean bestFirst, boolean formatted) {
         Player player = Player.findByName(name);
-        List<MatchResult> filtered = player.matches.stream()
-                .filter(matchResult -> getFilters(filters).stream().allMatch(p -> p.test(matchResult)))
+        List<MatchResult> filtered = filterMatches(player.matches, filters)
+                .stream()
                 .sorted(Comparator.comparing(mr -> mr.getMatch().date, Comparator.reverseOrder()))
                 .toList();
 
@@ -205,25 +190,25 @@ public class TennisService {
         if (formatted) {
             return new PlayerMatchesResponse(
                     null, StatsUtils.linkedHashMapMatchType(
-                    getPlayerMatchDetailsDtoList(filtered, sortField, SHORT).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList(),
-                    getPlayerMatchDetailsDtoList(filtered, sortField, LONG).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList()
+                    getPlayerMatchDetailsDtoList(filtered, bestFirst, SHORT).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList(),
+                    getPlayerMatchDetailsDtoList(filtered, bestFirst, LONG).stream().map(PlayerMatchesResponse.PlayerMatchDetailsDto::getRepresentation).toList()
             ));
         } else {
             return new PlayerMatchesResponse(
                     StatsUtils.linkedHashMapMatchType(
-                            getPlayerMatchDetailsDtoList(filtered, sortField, SHORT),
-                            getPlayerMatchDetailsDtoList(filtered, sortField, LONG)
+                            getPlayerMatchDetailsDtoList(filtered, bestFirst, SHORT),
+                            getPlayerMatchDetailsDtoList(filtered, bestFirst, LONG)
                     ), null);
         }
     }
 
     private List<PlayerMatchesResponse.PlayerMatchDetailsDto> getPlayerMatchDetailsDtoList(List<MatchResult> matches,
-                                                                                           boolean growSort,
+                                                                                           boolean bestFirst,
                                                                                            MatchType matchType) {
-        return filterByType(matches, matchType)
+        return filterMatches(matches, matchType)
                 .stream()
                 .map(ConverterUtils::getMatchDetailsDto)
-                .sorted(growSort
+                .sorted(bestFirst
                         ? Comparator.comparing(PlayerMatchesResponse.PlayerMatchDetailsDto::getScoreDifference, Comparator.reverseOrder())
                         : Comparator.comparingInt(value -> 1))
                 .toList();
@@ -237,16 +222,10 @@ public class TennisService {
         return new RecordsResponse(
                 StatsUtils.linkedHashMapMatchType(
                         getRecordListDto(allMatches),
-                        getRecordListDto(filterByType(allMatches, SHORT)),
-                        getRecordListDto(filterByType(allMatches, LONG))
+                        getRecordListDto(filterMatches(allMatches, SHORT)),
+                        getRecordListDto(filterMatches(allMatches, LONG))
                 )
         );
-    }
-
-    private List<MatchResult> filterByType(Collection<MatchResult> matchResults, MatchType... types) {
-        return matchResults.stream()
-                .filter(mr -> Arrays.asList(types).contains(mr.getMatch().type))
-                .toList();
     }
 
     private RecordsResponse.RecordListDto getRecordListDto(List<MatchResult> matchResults) {
@@ -339,28 +318,28 @@ public class TennisService {
     }
 
 
-    @CacheResult(cacheName = "ratings-cache")
-    public RatingsResponse getRatings(BaseFilter filter) {
+    public RatingsResponse getRatings(BaseFilter filter, Optional<Integer> limit) {
         Log.info("#getRatings()");
-        List<MatchResult> allMatches = matchResultRepo.streamAll()
-                .filter(mr -> getFilters(filter).stream().allMatch(p -> p.test(mr)))
-                .toList();
-
+        List<MatchResult> filtered = filterMatches(matchResultRepo.listAll(), filter);
         return new RatingsResponse(
                 StatsUtils.linkedHashMapMatchType(
-                        getRatingListDto(allMatches),
-                        getRatingListDto(filterByType(allMatches, SHORT)),
-                        getRatingListDto(filterByType(allMatches, LONG))
+                        getRatingListDto(filtered, limit),
+                        getRatingListDto(filterMatches(filtered, SHORT), limit),
+                        getRatingListDto(filterMatches(filtered, LONG), limit)
                 )
         );
     }
 
-    private RatingsResponse.RatingsListDto getRatingListDto(List<MatchResult> matchResults) {
+    private RatingsResponse.RatingsListDto getRatingListDto(List<MatchResult> matchResults,
+                                                            Optional<Integer> limit) {
         var playerToStats = matchResults.stream()
                 .collect(Collectors.groupingBy(MatchResult::getPlayer))
                 .entrySet()
                 .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> getPlayerStatisticDto(e.getValue())));
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> getPlayerStatisticDto(subLastMatches(e.getValue(), limit))
+                ));
 
         return RatingsResponse.RatingsListDto.builder()
                 .matches(getRatingsList(playerToStats, Comparator.comparing(PlayerStatsDto::getMatches), PlayerStatsDto::getMatches))
@@ -386,29 +365,69 @@ public class TennisService {
                 .toList();
     }
 
-    public PlayerHistoryResponse getPlayerHistory(String playerName, BaseFilter filters, Integer chunkSize) {
-        List<Predicate<MatchResult>> predicates = getFilters(filters);
-        var allMatches = Player.findByName(playerName).matches.stream()
-                .filter(matchResult -> predicates.stream().allMatch(p -> p.test(matchResult)))
-                .toList();
 
+    public RatingProgressResponse getProgressRating(MatchType matchType, BaseFilter filter, Integer chunk) {
+        List<MatchResult> filtered = filterMatches(matchResultRepo.listAll(), filter, matchType);
+        return new RatingProgressResponse(
+                matchType,
+                chunk,
+                getRatingProgressListDto(filtered, chunk)
+        );
+    }
+
+    private RatingProgressResponse.RatingProgressListDto getRatingProgressListDto(List<MatchResult> matches,
+                                                                                  int chunk) {
+        var playerToStats = matches.stream()
+                .collect(Collectors.groupingBy(MatchResult::getPlayer))
+                .entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey,
+                        e -> MutablePair.of(
+                                getPlayerStatisticDto(subPrevMatches(e.getValue(), Optional.of(chunk))),
+                                getPlayerStatisticDto(e.getValue()))));
+
+        return RatingProgressResponse.RatingProgressListDto.builder()
+                .winRate(getRatingProgressDifferenceList(playerToStats, PlayerStatsDto::getWinRate))
+                .pointsRate(getRatingProgressDifferenceList(playerToStats, PlayerStatsDto::getPointsRate))
+                .avgScored(getRatingProgressDifferenceList(playerToStats, PlayerStatsDto::getAvgPointsScored))
+                .avgMissed(getRatingProgressDifferenceList(playerToStats, PlayerStatsDto::getAvgPointsMissed))
+                .build();
+    }
+
+    private List<PlayerProgressResponse.PlayerProgressDifferenceDto> getRatingProgressDifferenceList(
+            Map<Player, MutablePair<PlayerStatsDto, PlayerStatsDto>> playersMatches,
+            Function<PlayerStatsDto, Double> valueExtractor) {
+
+        return playersMatches.entrySet().stream()
+                .map(e -> {
+                    var statsBefore = e.getValue().getLeft();
+                    var statsAfter = e.getValue().getRight();
+                    return getProgressDifferenceDto(e.getKey().name,
+                            valueExtractor.apply(statsBefore),
+                            valueExtractor.apply(statsAfter));
+                })
+                .sorted(Comparator.comparing(
+                        PlayerProgressResponse.PlayerProgressDifferenceDto::getDiffPercent,
+                        Comparator.reverseOrder()))
+                .toList();
+    }
+
+    public PlayerHistoryResponse getPlayerHistory(String playerName, BaseFilter filters, Integer chunkSize) {
+        var allMatches = filterMatches(Player.findByName(playerName).matches, filters);
         return new PlayerHistoryResponse(
                 chunkSize,
                 StatsUtils.linkedHashMapMatchType(
-                        getHistoryDtoList(filterByType(allMatches, SHORT), chunkSize),
-                        getHistoryDtoList(filterByType(allMatches, LONG), chunkSize))
+                        getHistoryDtoList(filterMatches(allMatches, SHORT), chunkSize),
+                        getHistoryDtoList(filterMatches(allMatches, LONG), chunkSize))
         );
     }
 
     public ByteArrayInputStream getPlayerHistoryInExcel(String name, BaseFilter filters, Integer chunkSize) {
-        List<Predicate<MatchResult>> predicates = getFilters(filters);
-        var allMatches = Player.findByName(name).matches.stream()
-                .filter(matchResult -> predicates.stream().allMatch(p -> p.test(matchResult)))
-                .toList();
+        var allMatches = filterMatches(Player.findByName(name).matches, filters);
 
         return excelReportService.generateHistoryReport(
-                getHistoryDtoList(filterByType(allMatches, SHORT), chunkSize),
-                getHistoryDtoList(filterByType(allMatches, LONG), chunkSize));
+                getHistoryDtoList(filterMatches(allMatches, SHORT), chunkSize),
+                getHistoryDtoList(filterMatches(allMatches, LONG), chunkSize));
     }
 
     private PlayerHistoryResponse.PlayerStatsHistoryListDto getHistoryDtoList(List<MatchResult> matches, int chunkSize) {
@@ -450,7 +469,7 @@ public class TennisService {
         var allMatches = Player.findByName(name).matches;
         var filtered = matchType == null
                 ? allMatches
-                : filterByType(allMatches, matchType);
+                : filterMatches(allMatches, matchType);
 
         var groupedByDay = filtered.stream()
                 .sorted(Comparator.comparing(mr -> mr.getMatch().date))
@@ -502,34 +521,36 @@ public class TennisService {
         PlayerStatsDto afterStats = getPlayerStatisticDto(afterMatches);
 
         return PlayerProgressResponse.PlayerProgressDifferenceListDto.builder()
-                .winRate(getProgressDifferenceDto(beforeStats.getWinRate(), afterStats.getWinRate()))
-                .avgPointsScored(getProgressDifferenceDto(beforeStats.getAvgPointsScored(), afterStats.getAvgPointsScored()))
-                .avgPointsMissed(getProgressDifferenceDto(beforeStats.getAvgPointsMissed(), afterStats.getAvgPointsMissed()))
-                .pointsRate(getProgressDifferenceDto(beforeStats.getPointsRate(), afterStats.getPointsRate()))
+                .winRate(getProgressDifferenceDto(null, beforeStats.getWinRate(), afterStats.getWinRate()))
+                .avgPointsScored(getProgressDifferenceDto(null, beforeStats.getAvgPointsScored(), afterStats.getAvgPointsScored()))
+                .avgPointsMissed(getProgressDifferenceDto(null, beforeStats.getAvgPointsMissed(), afterStats.getAvgPointsMissed()))
+                .pointsRate(getProgressDifferenceDto(null, beforeStats.getPointsRate(), afterStats.getPointsRate()))
                 .build();
     }
 
-    private PlayerProgressResponse.PlayerProgressDifferenceDto getProgressDifferenceDto(double valBefore, double valAfter) {
+    private PlayerProgressResponse.PlayerProgressDifferenceDto getProgressDifferenceDto(String playerName, double valBefore, double valAfter) {
         double doubleDiff = BigDecimal.valueOf(valAfter - valBefore).setScale(2, RoundingMode.HALF_UP).doubleValue();
-        double percentDiff = StatsUtils.divide((int) (doubleDiff * 100), (int) valBefore);
+        double percentDiff = StatsUtils.divideDoubles(doubleDiff * 100, valBefore);
         return new PlayerProgressResponse.PlayerProgressDifferenceDto(
+                playerName,
                 valBefore,
                 valAfter,
-                appendPlusSymbolIfNeeded(doubleDiff),
-                appendPlusSymbolIfNeeded(percentDiff) + "%"
+                doubleDiff,
+                percentDiff
         );
     }
 
-    private String appendPlusSymbolIfNeeded(double val) {
-        return val > 0
-                ? "+" + val
-                : "" + val;
-    }
-
     public MatchPredictionResponse predictMatchWinner(String playerName, String opponentName, MatchType matchType) {
-        List<MatchPredictDto> predicts = getMatchPredictDtoList(
-                Player.findByName(playerName),
-                Player.findByName(opponentName),
+        Player player = Player.findByName(playerName);
+        Player opponent = Player.findByName(opponentName);
+
+        List<MatchPredictDto> predicts = predictService.getMatchPredictDtoList(
+                filterMatches(player.matches, matchType)
+                        .stream()
+                        .filter(mr -> mr.getOpponent().equals(opponent))
+                        .toList(),
+                filterMatches(player.matches, matchType),
+                filterMatches(opponent.matches, matchType),
                 matchType
         );
 
@@ -541,111 +562,52 @@ public class TennisService {
         );
     }
 
-    private List<MatchPredictDto> getMatchPredictDtoList(Player player,
-                                                         Player opponent,
-                                                         MatchType matchType) {
-        double versusWeight = 2;
-        double generalWeight = 0.5;
-
-        Map<MatchPredictDto, List<Double>> allOutcomesAndPredictions = new LinkedHashMap<>();
-
-        appendDifferentPredictsToResult(allOutcomesAndPredictions,
-                filterByType(player.matches, matchType).stream()
-                        .filter(mr -> mr.getOpponent().equals(opponent)).toList(),
-                versusWeight,
-                matchType,
-                true);
-        appendDifferentPredictsToResult(allOutcomesAndPredictions, filterByType(player.matches, matchType), generalWeight, matchType, true);
-        appendDifferentPredictsToResult(allOutcomesAndPredictions, filterByType(opponent.matches, matchType), generalWeight, matchType, false);
-
-        allOutcomesAndPredictions.forEach((matchPredictDto, doubles) -> {
-            System.out.println(matchPredictDto.score() + " " + doubles);
-        });
-
-        return allOutcomesAndPredictions.entrySet()
+    private List<MatchResult> subLastMatches(Collection<MatchResult> matches, Optional<Integer> chunk) {
+        int listSize = matches.size();
+        int limitVal = chunk.orElse(listSize);
+        return matches
                 .stream()
-                .map(e -> new MatchPredictDto(
-                        e.getKey().getScored(),
-                        e.getKey().getMissed(),
-                        calculateAveragePredict(e.getValue())
-                ))
-                .sorted(MatchPredictDto::compareTo)
+                .sorted(Comparator.comparing(mr -> mr.getMatch().date, Comparator.reverseOrder()))
+                .limit(limitVal).toList();
+    }
+
+    private List<MatchResult> subPrevMatches(Collection<MatchResult> matches, Optional<Integer> chunk) {
+        int listSize = matches.size();
+        int skipVal = chunk.filter(c -> c > 0 && c <= listSize)
+                .orElse(0);
+        return matches
+                .stream()
+                .sorted(Comparator.comparing(mr -> mr.getMatch().date, Comparator.reverseOrder()))
+                .skip(skipVal).toList();
+    }
+
+    private List<MatchResult> filterMatches(Collection<MatchResult> matches, MatchType... types) {
+        return filterMatches(matches, null, types);
+    }
+
+    private List<MatchResult> filterMatches(Collection<MatchResult> matches, BaseFilter filters, MatchType... types) {
+        if (filters == null && (types == null || types.length == 0)) {
+            return matches.stream().toList();
+        }
+        List<Predicate<MatchResult>> predicates = new ArrayList<>();
+        if (filters != null) {
+            if (StringUtils.isNotEmpty(filters.getOpponent())) {
+                predicates.add(mr -> mr.getOpponent().name.equals(filters.getOpponent()));
+            }
+            if (StringUtils.isNotEmpty(filters.getTournament())) {
+                predicates.add(mr -> Optional.ofNullable(mr.getMatch().tournament)
+                        .map(tournament -> tournament.name.equals(filters.getTournament()))
+                        .orElse(Boolean.FALSE));
+            }
+            if (CollectionUtils.isNotEmpty(filters.getStages())) {
+                predicates.add(mr -> filters.getStages().contains(mr.getMatch().stage));
+            }
+        }
+        if (types.length > 0) {
+            predicates.add(mr -> Arrays.asList(types).contains(mr.getMatch().type));
+        }
+        return matches.stream()
+                .filter(mr -> predicates.stream().allMatch(predicate -> predicate.test(mr)))
                 .toList();
-    }
-
-    private double calculateAveragePredict(List<Double> values) {
-        return BigDecimal.valueOf(values.stream()
-                        .mapToDouble(value -> value)
-                        .average()
-                        .orElseThrow())
-                .setScale(2, RoundingMode.HALF_UP)
-                .doubleValue();
-    }
-
-    private void appendDifferentPredictsToResult(Map<MatchPredictDto, List<Double>> data,
-                                                 List<MatchResult> matchesToAnalyze,
-                                                 double weight,
-                                                 MatchType matchType,
-                                                 boolean predictSelf) {
-        int maxPoints = matchType.getPoints();
-        // Win
-        for (int i = 0; i < matchType.getPoints(); i++) {
-            var key = new MatchPredictDto(maxPoints, i);
-            double res = getMatchOutcomeRatio(matchesToAnalyze,
-                    predictSelf ? maxPoints : i,
-                    predictSelf ? i : maxPoints,
-                    matchType
-            );
-            data.putIfAbsent(key, new ArrayList<>());
-            data.get(key).add(res * weight);
-        }
-        // Lose
-        for (int i = 0; i < matchType.getPoints(); i++) {
-            var key = new MatchPredictDto(i, maxPoints);
-            double res = getMatchOutcomeRatio(matchesToAnalyze,
-                    predictSelf ? i : maxPoints,
-                    predictSelf ? maxPoints : i,
-                    matchType
-            );
-            data.putIfAbsent(key, new ArrayList<>());
-            data.get(key).add(res * weight);
-        }
-    }
-
-    private double getMatchOutcomeRatio(List<MatchResult> matches, int scored, int missed, MatchType type) {
-        var matchOutcome = new MatchPredictDto(scored, missed);
-        var outcomeCounts = matches.stream()
-                .map(mr -> new MatchPredictDto(mr.getScored(), mr.getMissed()))
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-
-        final int totalOutcomesCount = type.getPoints() * 2 + (outcomeCounts.values().stream().mapToInt(Math::toIntExact).sum());
-
-        var outcomeHappenedTimes = outcomeCounts.entrySet().stream()
-                .filter(e -> e.getKey().equals(matchOutcome))
-                .findFirst()
-                .map(Map.Entry::getValue)
-                .orElse(0L);
-
-        PlayerStatsDto stats = getPlayerStatisticDto(matches);
-
-        boolean outcomeWin = scored > missed;
-        double winDiff = StatsUtils.divide((int) stats.getWinRate(), 100);
-
-        double wrWeight = outcomeWin
-                ? 1 + winDiff
-                : 1 - winDiff;
-
-        if (winDiff == 0 && outcomeWin) {
-            wrWeight = 0;
-        } else if (winDiff == 0) {
-            wrWeight = 2.0;
-        }
-
-        return BigDecimal.valueOf(Math.toIntExact(outcomeHappenedTimes) + 1)
-                .divide(BigDecimal.valueOf(totalOutcomesCount), 4, RoundingMode.HALF_UP)
-                .multiply(BigDecimal.valueOf(100))
-//                .multiply(BigDecimal.valueOf(wrWeight))
-                .setScale(4, RoundingMode.HALF_UP)
-                .doubleValue();
     }
 }

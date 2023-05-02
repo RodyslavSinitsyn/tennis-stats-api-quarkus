@@ -23,8 +23,11 @@ public class StatsUtils {
                 .doubleValue();
     }
 
-    public static double calculatePercent(int oneHundredPercentValue, int neededValue) {
-        return divide((neededValue * 100), oneHundredPercentValue);
+    public static double divideDoubles(double val, double divideOn) {
+        return BigDecimal.valueOf(val)
+                .divide(BigDecimal.valueOf(
+                        NumberUtils.max(divideOn, 1)), 2, RoundingMode.HALF_UP)
+                .doubleValue();
     }
 
     public static int median(double[] values) {

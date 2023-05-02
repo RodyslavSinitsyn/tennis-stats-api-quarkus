@@ -28,7 +28,7 @@ public class PlayerMatchesResponse {
 
         @JsonIgnore
         public String getRepresentation() {
-            return String.format("[%s %d - %d %s] %s, %s",
+            return String.format("[%5s %2d - %2d %5s] %s, %s",
                     name, score, opponentScore, opponentName, stage, tournamentName);
         }
 

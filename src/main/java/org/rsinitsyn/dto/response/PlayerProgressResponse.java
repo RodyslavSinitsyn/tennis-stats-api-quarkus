@@ -1,5 +1,7 @@
 package org.rsinitsyn.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -10,7 +12,6 @@ import org.rsinitsyn.domain.MatchType;
 @Data
 @AllArgsConstructor
 public class PlayerProgressResponse {
-
     private MatchType filter;
     private int intervals;
     private List<PlayerProgressIntervalDto> dayInterval;
@@ -35,9 +36,27 @@ public class PlayerProgressResponse {
     @Data
     @AllArgsConstructor
     public static class PlayerProgressDifferenceDto {
+        private String name;
         private double before;
         private double after;
-        private String diff;
-        private String diffPercent;
+        @JsonIgnore
+        private double diff;
+        @JsonIgnore
+        private double diffPercent;
+
+        public String diff() {
+            return appendPlusSymbolIfNeeded(diff);
+        }
+
+        @JsonProperty
+        public String progress() {
+            return appendPlusSymbolIfNeeded(diffPercent) + "%" + " (" + diff() + ")";
+        }
+
+        private String appendPlusSymbolIfNeeded(double val) {
+            return val > 0
+                    ? "+" + val
+                    : "" + val;
+        }
     }
 }

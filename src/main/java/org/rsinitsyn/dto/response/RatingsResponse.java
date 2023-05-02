@@ -5,6 +5,7 @@ import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import org.rsinitsyn.dto.response.RecordsResponse.PlayerValueDto;
 
 @Data
 @AllArgsConstructor
@@ -14,12 +15,12 @@ public class RatingsResponse {
     @Data
     @Builder
     public static class RatingsListDto {
-        private List<RecordsResponse.RecordListDto.PlayerValueDto> matches;
-        private List<RecordsResponse.RecordListDto.PlayerValueDto> winRate;
-        private List<RecordsResponse.RecordListDto.PlayerValueDto> winStreak;
-        private List<RecordsResponse.RecordListDto.PlayerValueDto> loseStreak;
-        private List<RecordsResponse.RecordListDto.PlayerValueDto> avgScored;
-        private List<RecordsResponse.RecordListDto.PlayerValueDto> avgMissed;
-        private List<RecordsResponse.RecordListDto.PlayerValueDto> pointsRate;
+        private List<PlayerValueDto> matches;
+        private List<PlayerValueDto> winRate;
+        private List<PlayerValueDto> winStreak;
+        private List<PlayerValueDto> loseStreak;
+        private List<PlayerValueDto> avgScored;
+        private List<PlayerValueDto> avgMissed;
+        private List<PlayerValueDto> pointsRate;
     }
 }

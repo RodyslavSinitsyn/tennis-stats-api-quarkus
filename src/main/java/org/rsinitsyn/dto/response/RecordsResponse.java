@@ -32,8 +32,8 @@ public class RecordsResponse {
             private PlayerValueDto highest;
             private PlayerValueDto lowest;
         }
+    }
 
-        public record PlayerValueDto(String holder, String value) {
-        }
+    public record PlayerValueDto(String name, String value) {
     }
 }
