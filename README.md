@@ -1,85 +1,39 @@
-# tennis-stats-api-quarkus
+# Tennis Stats API - Quarkus
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+Tennis Stats API is a RESTful API built using the Quarkus framework. It offers comprehensive features for managing and analyzing tennis (ping-pong) data, with seamless database integration through Panache and file generation support via Apache POI.
 
-If you want to learn more about Quarkus, please visit its website: https://quarkus.io/ .
+## Features
 
-## Running the application in dev mode
+### Tournaments
+- **Create Tournament**: Add a new tournament to the database.
+- **Get All Tournaments**: Retrieve a list of all tournaments.
+- **Get Tournament History**: Fetch historical data for a specific tournament, including past matches and results.
 
-You can run your application in dev mode that enables live coding using:
+### Players
+- **Create Player**: Add a new player to the database.
+- **Get Matches History**: Retrieve match history for a specific player.
+- **Get Progress**: Track a player's progress over time, including rankings and performance trends.
+- **Get Stats**: Generate detailed statistics for a player in various formats:
+  - **XLS**: Download stats as an Excel spreadsheet.
+  - **CSV**: Download stats as a CSV file.
 
-```shell script
-./mvnw compile quarkus:dev
-```
+### Matches
+- **Create Match**: Record a new match with details such as players, scores, and tournament.
+- **Ratings**: Generate player ratings based on match performance.
+- **Best Results**: Retrieve record-breaking performances and best results among all players.
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at http://localhost:8080/q/dev/.
+## Technologies Used
 
-## Packaging and running the application
+### Framework
+- **Quarkus**: A modern, Kubernetes-native Java framework tailored for building efficient and lightweight REST APIs.
 
-The application can be packaged using:
+### Database Integration
+- **Panache**: Simplifies database operations and provides an elegant interface for interacting with entities.
 
-```shell script
-./mvnw package
-```
+### File Generation
+- **Apache POI**: Enables generation of Excel and CSV files for exporting player stats and other data.
 
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory. Be aware that it’s not an _über-jar_ as
-the dependencies are copied into the `target/quarkus-app/lib/` directory.
 
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
+## Contact
 
-If you want to build an _über-jar_, execute the following command:
-
-```shell script
-./mvnw package -Dquarkus.package.type=uber-jar
-```
-
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
-
-## Creating a native executable
-
-You can create a native executable using:
-
-```shell script
-./mvnw package -Pnative
-```
-
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
-
-```shell script
-./mvnw package -Pnative -Dquarkus.native.container-build=true
-```
-
-You can then execute your native executable with: `./target/tennis-stats-api-quarkus-1.0-SNAPSHOT-runner`
-
-If you want to learn more about building native executables, please consult https://quarkus.io/guides/maven-tooling.
-
-## Related Guides
-
-- JDBC Driver - H2 ([guide](https://quarkus.io/guides/datasource)): Connect to the H2 database via JDBC
-- YAML Configuration ([guide](https://quarkus.io/guides/config#yaml)): Use YAML to configure your Quarkus application
-- Hibernate ORM with Panache ([guide](https://quarkus.io/guides/hibernate-orm-panache)): Simplify your persistence code
-  for Hibernate ORM via the active record or the repository pattern
-
-## Provided Code
-
-### YAML Config
-
-Configure your application with YAML
-
-[Related guide section...](https://quarkus.io/guides/config-reference#configuration-examples)
-
-The Quarkus application configuration is located in `src/main/resources/application.yml`.
-
-### Hibernate ORM
-
-Create your first JPA entity
-
-[Related guide section...](https://quarkus.io/guides/hibernate-orm)
-
-[Related Hibernate with Panache section...](https://quarkus.io/guides/hibernate-orm-panache)
-
-### RESTEasy JAX-RS
-
-Easily start your RESTful Web Services
-
-[Related guide section...](https://quarkus.io/guides/getting-started#the-jax-rs-resources)
+For questions, suggestions, or support, please contact [radik200058@gmail.com](mailto:radik200058@gmail.com).
